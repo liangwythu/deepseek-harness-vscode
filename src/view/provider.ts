@@ -130,27 +130,26 @@ ${CLIENT_SCRIPT}
 
   private getMarkdownItSource(): string {
     if (this.markdownItSource) return this.markdownItSource
-    // markdown-it UMD min — self-contained, no external deps, declares `markdownit` global.
-    // Client script aliases: `const md = new MarkdownIt(...)` — UMD exposes `markdownit`.
-    const candidate = path.join(
-      // extensionUri might be inside the installed VSIX at runtime; for dev
-      // builds this resolves against node_modules next to the project root.
-      // We try multiple candidates; pick the first that exists.
-      __dirname, '..', '..', 'node_modules', 'markdown-it', 'dist', 'browser', 'markdown-it.umd.min.js',
-    )
-    try {
-      const src = fs.readFileSync(candidate, 'utf8')
-      // Normalize: UMD uses `markdownit` global; our client script uses
-      // `MarkdownIt`. Create an alias on `window`.
-      this.markdownItSource = src + '\n;window.MarkdownIt = window.markdownit;'
-      return this.markdownItSource
-    } catch {
-      // Fallback: if markdown-it cannot be loaded (shouldn't happen in normal
-      // builds), provide a stub that renders plain text so the UI degrades
-      // gracefully rather than crashing.
-      this.markdownItSource = `window.MarkdownIt = function(){return{render:function(s){return String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])).replace(/\\n/g,'<br/>')}}};`
-      return this.markdownItSource
+    // Try multiple candidate locations:
+    //   1. <extension>/media/markdown-it.umd.min.js  — packaged in VSIX
+    //   2. <extension>/node_modules/...              — dev mode (bundled dist/)
+    //   3. <extension>/../node_modules/...           — dev mode (unbundled)
+    const candidates = [
+      path.join(__dirname, '..', 'media', 'markdown-it.umd.min.js'),
+      path.join(__dirname, '..', 'node_modules', 'markdown-it', 'dist', 'browser', 'markdown-it.umd.min.js'),
+      path.join(__dirname, '..', '..', 'node_modules', 'markdown-it', 'dist', 'browser', 'markdown-it.umd.min.js'),
+    ]
+    for (const candidate of candidates) {
+      try {
+        const src = fs.readFileSync(candidate, 'utf8')
+        // UMD exposes `markdownit` global; our client script uses `MarkdownIt`.
+        this.markdownItSource = src + '\n;window.MarkdownIt = window.markdownit;'
+        return this.markdownItSource
+      } catch { /* try next */ }
     }
+    // Fallback: plain-text stub so the UI degrades gracefully.
+    this.markdownItSource = `window.MarkdownIt = function(){return{render:function(s){return String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])).replace(/\\n/g,'<br/>')}}};`
+    return this.markdownItSource
   }
 }
 

@@ -13,7 +13,7 @@
  *   GET  /api/events.mux  (WebSocket upgrade; 426 on plain GET)
  *     frame: { type: 'server-request', rpcId, method, payload: MuxFrame }
  *
- * v0.0.1 security boundary (§3): only 127.0.0.1 / localhost are accepted.
+ * v0.0.x security boundary (§3): only 127.0.0.1 / localhost are accepted.
  * The harness trust fence enforces the same on the server side.
  */
 
@@ -50,6 +50,7 @@ export interface HarnessClientOptions {
   log: (msg: string) => void
 }
 
+/** v0.0.x: only loopback hosts are accepted. */
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1'])
 
 export class HarnessClient implements Disposable {
@@ -89,7 +90,7 @@ export class HarnessClient implements Disposable {
    */
   async connect(): Promise<void> {
     if (!LOOPBACK_HOSTS.has(this.opts.host)) {
-      const msg = 'v0.0.1 only supports local DeepSeek Harness instances.'
+      const msg = 'v0.0.x only supports local DeepSeek Harness instances.'
       this.setState({ kind: 'error', message: msg })
       throw new Error(msg)
     }

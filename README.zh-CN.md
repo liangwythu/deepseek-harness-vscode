@@ -1,8 +1,9 @@
-# DeepSeek Harness Connector for VS Code (v0.0.1)
+# DeepSeek Harness Connector for VS Code (v0.0.2)
 
 [English](./README.md) | [简体中文](./README.zh-CN.md)
 
 [![VS Code Marketplace](https://img.shields.io/badge/VS%20Code-Marketplace-blue.svg)](https://marketplace.visualstudio.com/items?itemName=lucasliang.harness-connector-deepseek)
+[![Version](https://img.shields.io/badge/version-0.0.2-blue.svg)](https://github.com/liangwythu/deepseek-harness-vscode/releases/tag/v0.0.2)
 
 > DeepSeek Harness 的原生 VS Code 客户端。
 >
@@ -10,7 +11,7 @@
 
 **同一个 Harness。同一个工作区。同一个会话。VS Code 客户端。**
 
-这**不是** Cursor 的替代品，不是 Claude Code 的替代品，也不是完整的编码 Agent。v0.0.1 只证明一件事：
+这**不是** Cursor 的替代品，不是 Claude Code 的替代品，也不是完整的编码 Agent。它将 VS Code 连接到你已在运行的本地 `dsh web` 实例：
 
 ```
 浏览器 ─────┐
@@ -22,23 +23,39 @@
 VS Code ─────┘
 ```
 
-VS Code 连接到你已在运行的本地 `dsh web` 实例，读取浏览器中已有的工作区和会话，并继续**同一个**会话——所以浏览器刷新该会话时能看到 VS Code 发送的内容。
+VS Code 读取浏览器中已有的工作区和会话，并继续**同一个**会话——所以浏览器刷新该会话时能看到 VS Code 发送的内容。
 
-## v0.0.1 做什么
+## v0.0.2 新特性
+
+**对话 UX & 架构基线版** —— 进入 PR-only 模式前的最后一次直推版本。
+
+- **Assistant Markdown 渲染** —— `markdown-it`（`html: false`）在 webview 侧运行。代码块、列表、表格、链接均可渲染。不安全 HTML 被丢弃；链接以 `target=_blank rel=noopener` 打开。
+- **Tool 卡片合并** —— `tool/call` + `tool/result` 以 `callId` 合并为单个可折叠的 `ToolItem`。不再有粉色整块 result。点击展开 Arguments + Result。
+- **System 消息折叠** —— `SystemItem` 是独立类型（不再是带标记的 `UserItem`）。默认 UI 为一行折叠 `▸ Runtime context · @deepseek-ai/dsh-system-prompt`。
+- **惰性创建 workspace + session** —— 打开 repo，输入提示，按 Send。workspace 和 session 在首次发送时自动创建。无确认弹窗。
+- **流式渲染修复** —— `renderVersion` 单调递增计数器确保每次模型变更都触发 webview 重渲染。修复了"流式文本变了但 UI 不更新"的 bug。
+- **架构加固** —— `AppController` 接管编排；`extension.ts` 纯接线；`provider.ts` 拆分为 `styles/html/client/toolPresentation`。为后续 feature PR 提供稳定边界。
+
+详见 [CHANGELOG.zh-CN.md](./CHANGELOG.zh-CN.md)。
+
+## v0.0.2 做什么
 
 - 连接到**本地** `dsh web`（仅限回环地址——`127.0.0.1` / `localhost`）。
-- 将当前 VS Code 文件夹匹配到 Harness 工作区（若不存在则提示创建）。
+- 将当前 VS Code 文件夹匹配到 Harness 工作区。若无匹配，工作区在**首次发送时惰性创建**——无弹窗。
 - 列出该工作区已有的会话。
 - 打开会话并渲染其历史记录。
-- 向该会话发送纯文本提示。
-- 实时流式传输助手回复（文本增量 + 工具活动）。
+- 向该会话发送纯文本提示。若无会话，自动创建。
+- 实时流式传输助手回复，支持 **Markdown 渲染**（代码块、列表、表格、链接）。
+- 将工具调用显示为**折叠卡片**，带语义化标题（`Read src/foo.ts`、`Search "pattern"`、`Run npm test`）。
+- 默认隐藏插件注入的系统消息；通过 `SYS` 按钮切换。
 - 停止当前回合。
 - 断线时重新打开流并重新获取历史记录。
 - "在 Harness Web UI 中打开"命令。
+- 通过 ⇲ 按钮将视图停靠在右侧边栏（像聊天面板一样）。
 
-## v0.0.1 刻意不做的事
+## v0.0.2 刻意不做的事
 
-为安全起见，v0.0.1 拒绝触碰读取 + 提示 + 取消之外的任何操作：
+为安全起见，v0.0.2 拒绝触碰读取 + 提示 + 取消之外的任何操作：
 
 - 不调用 `/api/respond`，不批准/拒绝审批，不修改权限。
 - 不调用 `commands/execute`，不访问 `credentials` 或 `settings` API。
@@ -77,20 +94,22 @@ VS Code 连接到你已在运行的本地 `dsh web` 实例，读取浏览器中�
    或从 [GitHub Releases](https://github.com/liangwythu/deepseek-harness-vscode/releases) 安装 VSIX：
 
    ```bash
-   code --install-extension harness-connector-deepseek-0.0.1.vsix
+   code --install-extension harness-connector-deepseek-0.0.2.vsix
    ```
 
 3. 在 VS Code 中打开一个你想绑定到 Harness 工作区的文件夹。
 
 4. DeepSeek Harness 活动栏图标出现；扩展自动连接。如果你的文件夹匹配到一个已有的 Harness 工作区，其会话会出现在下拉列表中。选择一个，继续对话。
 
-5. 在浏览器中打开 `http://127.0.0.1:3080/` 的同一会话——两端看到的是同一轮对话。
+5. **没有匹配的工作区？** 直接输入提示按 Send——工作区和会话会自动创建。
+
+6. 在浏览器中打开 `http://127.0.0.1:3080/` 的同一会话——两端看到的是同一轮对话。
 
 ## 配置
 
 | 设置项 | 默认值 | 说明 |
 | --- | --- | --- |
-| `deepseekHarness.host` | `127.0.0.1` | **v0.0.1 仅允许 `127.0.0.1` 或 `localhost`。** 其他值会被拒绝。 |
+| `deepseekHarness.host` | `127.0.0.1` | **v0.0.x 仅允许 `127.0.0.1` 或 `localhost`。** 其他值会被拒绝。 |
 | `deepseekHarness.port` | `3080` | 默认 `dsh web` 端口。如果你用 `dsh web --port <n>` 启动则需修改。 |
 | `deepseekHarness.showSystemMessages` | `false` | 显示插件注入的系统消息（运行时上下文、审批通知）。默认隐藏；可通过 webview 头部的 `SYS` 按钮实时切换。 |
 
@@ -131,7 +150,7 @@ npm install
 npm run build        # esbuild → dist/extension.js
 npm run watch        # 变更时自动重建
 npm run typecheck
-npm run package      # → harness-connector-deepseek-0.0.1.vsix
+npm run package      # → harness-connector-deepseek-0.0.2.vsix
 ```
 
 在 VS Code 中按 `F5` 启动带有该扩展的扩展开发宿主。
@@ -145,16 +164,17 @@ npm run package      # → harness-connector-deepseek-0.0.1.vsix
 
 - 仅限回环——不支持远程 / 局域网 / WSL 桥接的主机。
 - 仅支持文本提示（不支持图片附件）。
-- 历史记录加载最近约 50 条消息；"加载更早"是 v0.0.2 的计划。
+- 历史记录加载最近约 50 条消息；"加载更早"是未来版本的计划。
 - "Open Web UI" 中的会话深链接不做猜测——只打开 Harness 首页。
 - 未知的 harness 事件类型会被忽略（协议是可合并扩展的）；它们不会导致客户端崩溃，但也不会渲染。
 
-## v0.0.2 TODO（已记录，未实现）
+## 路线图（v0.0.3+，通过 feature PR）
 
 - 差异审查（Diff Review）
 - 审批集成（Approval integration）
 - 内联补全（Inline Completion）
 - VS Code 文件系统提供器
+- 上下文注入（Context injection）
 
 ## 许可证
 

@@ -124,7 +124,8 @@ export const CLIENT_SCRIPT = /* js */ `
     }
     if (prev && state.activeSessionId === undefined) sel.value = prev;
 
-    // Messages — ONLY rebuild on renderVersion change (fixes streaming bug).
+    // Messages — rebuild on renderVersion change (streaming fix) OR when
+    // there's no snapshot yet (connection state may have changed).
     const msgs = $('messages');
     const snap = state.snapshot;
     if (snap && snap.renderVersion !== lastRenderVersion) {
@@ -136,10 +137,24 @@ export const CLIENT_SCRIPT = /* js */ `
         for (const item of snap.items) msgs.appendChild(renderItem(item));
       }
       msgs.scrollTop = msgs.scrollHeight;
-    } else if (!snap && msgs.dataset.empty !== '1') {
-      // No snapshot at all
-      msgs.innerHTML = '<div class="empty">Disconnected. Click Connect or restart the extension.</div>';
-      msgs.dataset.empty = '1';
+    } else if (!snap) {
+      // No snapshot — show contextual empty state based on connection.
+      // This branch runs every render when there's no snap, so the message
+      // tracks the live connection state instead of caching "Disconnected".
+      var emptyMsg;
+      if (state.connection === 'connected') {
+        emptyMsg = state.workspace === null
+          ? 'Workspace will be created on your first send. Type a prompt below to begin.'
+          : 'Select a session or send a prompt to start.';
+      } else if (state.connection === 'connecting') {
+        emptyMsg = 'Connecting to DeepSeek Harness…';
+      } else if (state.connection === 'error') {
+        emptyMsg = state.errorMessage || 'Connection error';
+      } else {
+        emptyMsg = 'Disconnected. Click Connect or restart the extension.';
+      }
+      var expected = '<div class="empty">' + escapeText(emptyMsg) + '</div>';
+      if (msgs.innerHTML !== expected) msgs.innerHTML = expected;
     }
 
     // Input controls

@@ -1,7 +1,7 @@
 # 发布流程
 
 本文档描述如何裁剪并发布 **DeepSeek Harness Connector for VS Code** 的一个版本。
-v0.0.1 以 GitHub Release + VSIX 资产的形式发布；Marketplace 发布是可选的，见末尾说明。
+v0.0.2 以 GitHub Release + VSIX 资产 + Marketplace 上传的形式发布；Marketplace 发布是可选的，见末尾说明。
 
 ---
 

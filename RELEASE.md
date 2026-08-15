@@ -1,8 +1,8 @@
 # Release Process
 
 This document describes how to cut and publish a release of
-**DeepSeek Harness Connector for VS Code**. v0.0.1 ships as a GitHub Release with a VSIX
-asset; Marketplace publishing is optional and documented at the end.
+**DeepSeek Harness Connector for VS Code**. v0.0.2 ships as a GitHub Release + VSIX
+asset + Marketplace upload; Marketplace publishing is optional and documented at the end.
 
 ---
 

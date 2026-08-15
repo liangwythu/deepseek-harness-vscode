@@ -89,7 +89,7 @@
         "deepseekHarness.host": {
           "type": "string",
           "default": "127.0.0.1",
-          "markdownDescription": "DeepSeek Harness host. **v0.0.x only allows `127.0.0.1` or `localhost`.** Any other value is refused."
+          "markdownDescription": "DeepSeek Harness host. **v0.0.x only allows `127.0.0.1` or `localhost` (security boundary).** Any other value is refused."
         },
         "deepseekHarness.port": {
           "type": "number",

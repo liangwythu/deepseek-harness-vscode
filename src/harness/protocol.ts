@@ -87,7 +87,7 @@ export interface SessionSummary {
   }
 }
 
-/** One content part of a prompt. v0.0.1 only sends text. */
+/** One content part of a prompt. v0.0.x only sends text. */
 export type PromptContentPart =
   | { type: 'text'; text: string }
   | { type: 'image'; mediaType: string; data: string; name?: string }

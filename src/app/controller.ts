@@ -1,6 +1,6 @@
 /**
  * AppController — owns the full orchestration that used to live inline in
- * extension.ts (v0.0.1). This module is now the only thing that touches:
+ * extension.ts (v0.0.1→v0.0.2 refactor). This module is now the only thing that touches:
  *   - connect/disconnect
  *   - workspace lifecycle (find + ensure on demand)
  *   - session lifecycle (select / create / prompt)
