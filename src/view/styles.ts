@@ -144,4 +144,17 @@ textarea { resize: none; min-height: 60px; max-height: 200px; width: 100%; }
 #open-web a { color: var(--vscode-textLink-foreground); cursor: pointer; text-decoration: none; font-size: 11px; }
 #open-web a:hover { text-decoration: underline; }
 .empty { text-align: center; color: var(--vscode-descriptionForeground); padding: 24px 12px; font-size: 12px; }
+
+/* Context injection UI */
+.context-bar { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px 0; align-items: center; }
+.ctx-chip {
+  display: inline-flex; align-items: center; gap: 3px;
+  background: var(--vscode-badge-background, rgba(0,120,212,.2));
+  color: var(--vscode-badge-foreground, var(--vscode-foreground));
+  border-radius: 3px; padding: 1px 6px; font-size: 10px; max-width: 200px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ctx-chip.selection { background: var(--vscode-charts-yellow, #ca9c2e); color: var(--vscode-contrastActiveBorder, #000); }
+.ctx-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.atfile-hint { font-size: 10px; color: var(--vscode-descriptionForeground); opacity: 0.7; padding: 2px 0; }
 `

@@ -14,7 +14,7 @@
 import type * as vscode from 'vscode'
 import type { HarnessClient } from '../harness/client.ts'
 import type { MuxStatus } from '../harness/events.ts'
-import type { SessionId, SessionSummary, WorkspaceView } from '../harness/protocol.ts'
+import type { PromptContext, SessionId, SessionSummary, WorkspaceView } from '../harness/protocol.ts'
 import { ConversationModel, sessionLabel } from '../conversation/model.ts'
 import type { ConversationItem, SessionSnapshot } from '../conversation/types.ts'
 import {
@@ -24,7 +24,9 @@ import {
 import type { UiState } from './state.ts'
 import { connectionToUi, sessionsToUi, workspaceToUi } from './state.ts'
 import type { WebviewAction } from '../view/provider.ts'
+import type { HarnessWebviewViewProvider } from '../view/provider.ts'
 import { CompositeDisposable } from '../disposable.ts'
+import { collectEditorContext, mergeContext, parseAtFileReferences } from '../context/collector.ts'
 
 export interface ControllerDeps {
   client: HarnessClient
@@ -41,6 +43,7 @@ export interface ControllerDeps {
   openHarnessHome: () => void
   moveToSecondarySideBar: () => Promise<void>
   log: { info: (m: string) => void; error: (m: string) => void }
+  provider?: HarnessWebviewViewProvider
 }
 
 export class AppController {
@@ -77,7 +80,7 @@ export class AppController {
       case 'selectSession': await this.selectSession(action.sessionId); break
       case 'newSession': await this.newSession(); break
       case 'refreshSessions': await this.refreshSessions(); break
-      case 'sendPrompt': await this.sendPrompt(action.text); break
+      case 'sendPrompt': await this.sendPrompt(action.text, action.context); break
       case 'stop': await this.stopActive(); break
       case 'openWebUI': this.d.openHarnessHome(); break
       case 'toggleSystemMessages': this.toggleSystemMessages(); break
@@ -207,14 +210,15 @@ export class AppController {
    *  1. If no folder → tell user.
    *  2. If no harness workspace → ensureHarnessWorkspace (no modal).
    *  3. If no session → create session.
-   *  4. Prompt.
+   *  4. Parse @file refs from text (strip tokens → cleaned text).
+   *  5. Collect editor context (active file, selection).
+   *  6. Merge all context sources.
+   *  7. Optimistic echo → prompt with context.
    *
-   * On failure the text is echoed back (caller's webview responsibility is
-   * to clear input only after optimistic echo ack — which is automatic when
-   * optimisticUserEcho runs, since the snapshot.renderVersion bump triggers
-   * a render). We don't mutate textarea here.
+   * Context is passed as `payload.context` (metadata), NOT in `payload.content`,
+   * so the conversation KV cache is not affected.
    */
-  async sendPrompt(text: string): Promise<void> {
+  async sendPrompt(rawText: string, webviewContext?: PromptContext): Promise<void> {
     const st = this.d.getState()
     this.d.setState({ sending: true })
     this.d.pushState()
@@ -237,11 +241,34 @@ export class AppController {
         await this.selectSession(created.sessionId)
       }
       if (!this.activeSessionId) return
-      // 4: optimistic echo → prompt
-      this.model?.optimisticUserEcho(text)
+
+      // 4: parse @file references (strips tokens from text)
+      const { cleanedText, files: atFileRefs } = parseAtFileReferences(rawText)
+      const displayText = cleanedText || rawText // fallback if all text was @file refs
+
+      // 5: collect editor context (active file, selection)
+      const editorCtx = collectEditorContext(this.d.vscodeAPI.window)
+
+      // 6: merge all context sources (webview + @file + editor)
+      const merged = mergeContext(
+        webviewContext ?? editorCtx,
+        atFileRefs,
+      )
+      // If webview sent context but editor also has state, merge editor too
+      const finalContext = webviewContext
+        ? mergeContext(mergeContext(editorCtx, atFileRefs), webviewContext.files ?? [])
+        : merged
+
+      // 7: optimistic echo → prompt with context
+      this.model?.optimisticUserEcho(displayText)
       this.d.setState({ snapshot: this.model?.snapshot() })
       this.d.pushState()
-      await this.d.client.prompt(this.activeSessionId, text, Intl.DateTimeFormat().resolvedOptions().timeZone)
+      await this.d.client.prompt(
+        this.activeSessionId,
+        displayText,
+        Intl.DateTimeFormat().resolvedOptions().timeZone,
+        finalContext,
+      )
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       this.d.notifyError(msg)
@@ -277,6 +304,28 @@ export class AppController {
       const msg = e instanceof Error ? e.message : String(e)
       this.d.notifyError(msg)
     }
+  }
+
+  /** Append an @file reference to the webview input (called from explorer/context menu). */
+  addToChat(uri: vscode.Uri): void {
+    const filePath = uri.fsPath
+    const token = `@file:${filePath} `
+    this.d.provider?.postToWebview({ kind: 'appendInput', text: token })
+  }
+
+  /** Append an @file reference (path + line range) for the current selection to the chat input. */
+  sendSelection(): void {
+    const editor = this.d.vscodeAPI.window.activeTextEditor
+    if (!editor || editor.selection.isEmpty) {
+      this.d.notifyError('No text selected in the active editor.')
+      return
+    }
+    const filePath = editor.document.fileName
+    const startLine = editor.selection.start.line + 1
+    const endLine = editor.selection.end.line + 1
+    const range = startLine === endLine ? `:L${startLine}` : `:L${startLine}-L${endLine}`
+    const token = `@file:${filePath}${range} `
+    this.d.provider?.postToWebview({ kind: 'appendInput', text: token })
   }
 
   toggleSystemMessages(): void {

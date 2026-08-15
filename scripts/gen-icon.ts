@@ -25,12 +25,13 @@ async function main(): Promise<void> {
   writeFileSync(OUT_PNG, pngBuffer)
   console.log(`✓ wrote ${OUT_PNG} (${pngBuffer.length} bytes, 128×128)`)
 
-  // 2. SVG: posterize to a few levels then vectorize with potrace.
-  //    We posterize to 2 levels (black+white) so the result is a clean
-  //    monochrome path that works with `currentColor` in the activity bar.
-  //    Input must be a PNG buffer (potrace uses the sharp output).
+  // 2. SVG: monochrome vector trace for the activity bar (uses currentColor).
+  //    Flatten all non-transparent pixels to black so both the whale (black)
+  //    and the blue geometric elements are captured by potrace.
   const bwPng = await sharp(ORIGIN)
     .resize({ width: 128, height: 128, fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .flatten({ background: { r: 255, g: 255, b: 255 } })
+    .threshold(250)
     .png()
     .toBuffer()
 
@@ -40,12 +41,6 @@ async function main(): Promise<void> {
     })
   })
 
-  // The raw potrace output does NOT include xmlns/width/height/viewBox and
-  // uses a hard-coded black fill. We wrap it so the VS Code activity bar can
-  // scale it and `currentColor` can apply.
-  // Clean the raw potrace output:
-  //   - strip the wrapping <?xml ...?> and <svg ...>...</svg>
-  //   - remove hard-coded fill/stroke attributes so currentColor works
   const inner = svg
     .replace(/<\?xml[^>]*\?>\s*/, '')
     .replace(/<svg[^>]*>/, '')

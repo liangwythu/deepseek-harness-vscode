@@ -92,6 +92,38 @@ export type PromptContentPart =
   | { type: 'text'; text: string }
   | { type: 'image'; mediaType: string; data: string; name?: string }
 
+// ─── context injection (VS Code → Harness, metadata-only for KV cache safety) ─
+// Context items travel in a separate `context` field of the session.prompt
+// payload, NOT inside `content`. This guarantees the conversation KV cache
+// is unaffected — the backend can read files / resolve ranges on its own.
+
+/** A file reference extracted from @file:path or @file:path:L10-L20 syntax. */
+export interface FileReference {
+  path: string
+  lineStart?: number
+  lineEnd?: number
+}
+
+/** A text selection from the active editor. */
+export interface SelectionContext {
+  text: string
+  path: string
+  lineStart: number
+  lineEnd: number
+}
+
+/** The active file at the moment the prompt is sent. */
+export interface ActiveFileContext {
+  path: string
+}
+
+/** Structured context attached to a prompt (metadata, not persisted to KV). */
+export interface PromptContext {
+  files?: FileReference[]
+  selection?: SelectionContext
+  activeFile?: ActiveFileContext
+}
+
 export interface HistoryEntry {
   event: SessionEvent
   view?: ToolEventView
