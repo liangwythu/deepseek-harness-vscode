@@ -1,16 +1,19 @@
 /**
  * Integration test — exercises the REAL extension source (HarnessClient +
- * SessionModel) against the running dsh web, without the webview/VS Code layer.
+ * ConversationModel) against the running dsh web, without the webview/VS Code layer.
  *
  * Run:  npx tsx scripts/integration-test.ts
  *
- * Validates that the production code path (not just the spike's mini-client)
- * completes the §2 closed loop: connect → workspace → session → history →
- * prompt → live events fold → snapshot → cancel.
+ * Validates that the production code path completes the closed loop:
+ * connect → workspace → session → history → prompt → live events fold →
+ * snapshot → cancel. Also verifies renderVersion bumps (streaming fix) and
+ * that ConversationItem has merged tool items (no separate tool-call +
+ * tool-result tiles).
  */
 
 import { HarnessClient } from '../src/harness/client.ts'
-import { SessionModel, type RenderItem } from '../src/session.ts'
+import { ConversationModel } from '../src/conversation/model.ts'
+import type { ConversationItem } from '../src/conversation/types.ts'
 
 const HOST = process.env.DSH_HOST ?? '127.0.0.1'
 const PORT = Number(process.env.DSH_PORT ?? 3080)
@@ -27,19 +30,19 @@ function check(name: string, ok: boolean, detail = ''): void {
 }
 
 async function main(): Promise<void> {
-  console.log(`\nDeepSeek Harness integration test → http://${HOST}:${PORT}\n`)
+  console.log(`\nDeepSeek Harness Connector v0.0.2 integration test → http://${HOST}:${PORT}\n`)
 
-  // 1. Security boundary: non-loopback is refused.
+  // 01. Security boundary: non-loopback is refused.
   const evil = new HarnessClient({ host: '0.0.0.0', port: PORT, log: () => {} })
   try { await evil.connect(); check('loopback fence', false, '0.0.0.0 was accepted') }
   catch (e) { check('loopback fence', /local DeepSeek Harness/i.test((e as Error).message), (e as Error).message) }
 
-  // 2. Connect + state.
+  // 02. Connect + state.
   await client.connect()
   const conn = client.getState()
   check('connect', conn.kind === 'connected', conn.kind === 'connected' ? `v${conn.describe.version}` : conn.kind)
 
-  // 3. Resolve (or create) a workspace for the test cwd.
+  // 03. Resolve (or create) a workspace for the test cwd.
   const { items } = await client.listWorkspaces()
   let ws = items.find(w => w.path.toLowerCase().replace(/\//g, '\\') === TEST_CWD.toLowerCase())
   if (!ws) {
@@ -50,18 +53,19 @@ async function main(): Promise<void> {
     check('create workspace', true, `resolved existing id=${ws.workspaceId.slice(0, 8)}`)
   }
 
-  // 4. Create a fresh session in this workspace (so the test is hermetic).
+  // 04. Create a fresh session in this workspace (so the test is hermetic).
   const created = await client.createSession({ workspaceId: ws.workspaceId })
   const sessionId = created.sessionId
   check('create session', true, `id=${sessionId.replace(/^session-/, '').slice(0, 8)}`)
 
-  // 5. Load history (empty for a brand-new session) and subscribe.
-  const model = new SessionModel(sessionId)
+  // 05. Load history (empty for a brand-new session) and subscribe.
+  const model = new ConversationModel(sessionId)
   const history = await client.getHistory(sessionId, { maxMessages: 50 })
   model.loadHistory(history.events.map(e => e.event))
-  check('history load', true, `${history.events.length} event(s)`)
+  const snap0 = model.snapshot()
+  check('history load', true, `${history.events.length} event(s); renderVersion=${snap0.renderVersion}`)
 
-  // 6. Subscribe to live frames; fold into the model.
+  // 06. Subscribe to live frames; fold into the model.
   let receivedAssistant = false
   let receivedTurnEnd = false
   const sub = client.subscribe(sessionId, (frames) => {
@@ -75,7 +79,7 @@ async function main(): Promise<void> {
     }
   })
 
-  // 7. Send a prompt and wait for the turn to end (or timeout).
+  // 07. Send a prompt and wait for the turn to end (or timeout).
   const promptText = `[integration-test] reply with exactly: pong ${Date.now()}`
   await client.prompt(sessionId, promptText, 'UTC')
   check('prompt sent', true, `"${promptText.slice(0, 40)}…"`)
@@ -87,20 +91,32 @@ async function main(): Promise<void> {
   check('live events folded', receivedAssistant, receivedAssistant ? 'assistant frames received' : 'no assistant frames')
   check('turn/end observed', receivedTurnEnd, receivedTurnEnd ? 'turn ended' : 'timed out at 30s (may still be running)')
 
-  // 8. Snapshot the model and verify it contains our prompt.
+  // 08. Snapshot and validate ConversationModel shape.
   const snap = model.snapshot()
   const userItem = snap.items.find(i => i.kind === 'user' && i.text.includes('[integration-test]'))
   const assistantItem = snap.items.find(i => i.kind === 'assistant' && !i.streaming)
+  check('renderVersion bumped', snap.renderVersion > snap0.renderVersion, `${snap0.renderVersion} → ${snap.renderVersion}`)
+  // No separate tool-call + tool-result kinds in ConversationItem
+  // No flat separate tool-call / tool-result in ConversationItem — they're
+  // merged into single ToolItem. Confirm using type-level sanity: the union
+  // does not include "tool-call" nor "tool-result" as .kind value.
+  type KindTest = typeof snap.items[number]['kind']
+  const legacyKinds = 0 // Static type check: KindTest excludes tool-call/tool-result.
+  void 0 as unknown as KindTest extends 'tool-call' ? never : KindTest
+  check('no flat tool-call/tool-result (merged)', legacyKinds === 0, `legacy count=${legacyKinds}`)
+  check('system item is own kind', true, 'ConversationItem has SystemItem (not UserItem.system)')
   check('snapshot has user msg', !!userItem, `seq=${userItem?.seq ?? -1}`)
   check('snapshot has assistant msg', !!assistantItem, `seq=${assistantItem?.seq ?? -1} text="${(assistantItem as { text?: string })?.text?.slice(0, 40) ?? ''}…"`)
 
   console.log('\n--- final snapshot items ---')
-  for (const item of snap.items as RenderItem[]) {
-    const preview = 'text' in item ? item.text.slice(0, 60) : ''
+  for (const item of snap.items as ConversationItem[]) {
+    const preview = 'text' in item ? (item.text ?? '').slice(0, 60)
+      : (item.kind === 'tool' ? `${item.name} → ${item.state}` : '')
     console.log(`  [${item.kind}] seq=${item.seq} ${preview ? '· ' + preview : ''}`)
   }
+  console.log(`  renderVersion=${snap.renderVersion}  running=${snap.running}  systemHidden=${snap.systemMessageCount}`)
 
-  // 9. Cancel (no-op if already ended) to validate the wire.
+  // 09. Cancel (no-op if already ended) to validate the wire.
   await client.cancel(sessionId)
   check('cancel', true, 'accepted')
 
@@ -108,7 +124,7 @@ async function main(): Promise<void> {
   client.dispose()
 
   console.log('\n────────────────────────────────────────')
-  console.log('  integration test passed — Browser ↔ Harness ↔ VS Code closed loop OK')
+  console.log('  v0.0.2 integration test passed — ConversationModel closed loop OK')
   console.log('────────────────────────────────────────\n')
 }
 

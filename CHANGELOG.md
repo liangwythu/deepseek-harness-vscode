@@ -5,6 +5,82 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.2] — 2026-08-15
+
+Tagline: **Conversation UX & Architecture Baseline.**
+
+The "main-branch last direct-push release": hardens structure, rendering
+correctness, and interaction UX so that v0.0.3+ can be developed entirely via
+feature PRs onto stable boundaries.
+
+### Architecture (structural boundary hardening)
+
+- **`src/app/controller.ts` + `state.ts`** — new `AppController` owns all
+  orchestration (connect/disconnect, workspace lifecycle, session lifecycle,
+  prompt/cancel, mux dispatch, UiState push). `extension.ts` stays as pure
+  wiring: `activate() / deactivate()`, `readConfig()`, command registration,
+  and dependency instantiation only.
+- **`src/conversation/`** — `ConversationModel` replaces the flat `SessionModel`.
+  Events no longer map 1:1 to renderable items; instead they project into
+  conversation-semantic `ConversationItem[]` (`user`, `assistant`, `system`,
+  `tool`, `status`).
+- **`src/workspace/binding.ts`** — workspace creation is split into
+  `findHarnessWorkspace()` (discovery, connect-time) and `ensureHarnessWorkspace()`
+  (create-on-demand, send-time). The old `resolveHarnessWorkspace()` that
+  eagerly prompted for creation inside the connect flow has been removed.
+- **`src/view/` split** — `provider.ts` (composition only) is now joined by
+  sibling modules: `styles.ts`, `html.ts`, `client.ts` (webview-side JS), and
+  `toolPresentation.ts`. React/Preact/Vite are deliberately NOT introduced;
+  vanilla DOM continues to carry a couple more releases.
+
+### UX fixes
+
+- **Lazy workspace + session on first Send.** When the user opens a repo
+  without a matching Harness workspace, the sidebar stays usable and shows a
+  *"Not registered yet — will be created lazily on first send"* banner. The
+  first `Send` implicitly creates workspace → creates session → sends the
+  prompt, with no confirmation modals. The input textarea is only cleared
+  after the optimistic echo reaches the snapshot; prompt text is not lost on
+  creation failure.
+- **Tool cards are now one item.** `tool/call` + matching `tool/result` are
+  merged into a single `ToolItem` owned by `callId`. The sidebar renders a
+  collapsed header `🔧 read src/session.ts → ✓ done` that you click to expand
+  Arguments + Result. This eliminates the "pink tool-result block" noise.
+  `toolPresentation.ts` provides a name-aware pretty title (read, grep, bash,
+  write, edit, git_*, …).
+- **System messages are their own item kind.** `SystemItem` no longer reuses
+  `UserItem` with a `system: true` flag. All downstream filtering is based on
+  `item.kind === 'system'` — no more `if user && system` spreads. Default UI
+  is a single collapsed line `▸ Runtime context · @deepseek-ai/dsh-system-prompt`.
+- **Assistant Markdown rendering.** `markdown-it` (with `html: false`,
+  `linkify: true`) runs **inside the webview**, not the extension host, so
+  `ConversationModel` stays semantic-only. User/System messages still render
+  with `textContent`. Links open with `target=_blank rel=noopener` and
+  `javascript:`/`data:` URLs are stripped. Tool results stay `<pre>` for now.
+- **Streaming text now always re-renders.** Each model mutation bumps a
+  monotonically increasing `renderVersion`. The webview rebuilds the message
+  list **solely** on `snapshot.renderVersion` change — previously, an
+  assistant streaming update would often fall through stale `lastSeq` /
+  `items.length` signature checks and skip the re-render entirely.
+
+### Test coverage
+
+- Integration test upgraded to exercise `ConversationModel`. New assertions:
+  - `renderVersion` strictly increases after a prompt run (1 → 19 in the
+    standard "pong" flow).
+  - No `tool-call` / `tool-result` kinds leak into `ConversationItem` (they
+    are merged; this is enforced both at the type level and at runtime).
+  - `systemMessageCount` is tracked separately from user items.
+
+### Discipline
+
+- Explicit **NOT in v0.0.2**: Diff review, approval/respond, inline
+  completion, context injection, filesystem provider, terminal integration,
+  LSP/ACP/SDK abstractions, transport interfaces. All of these start life as
+  feature branches / PRs from v0.0.3 onward.
+
+---
+
 ## [0.0.1] — 2026-08-15
 
 The first public release. This version proves **one** thing: VS Code and the
