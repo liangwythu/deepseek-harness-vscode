@@ -76,6 +76,15 @@ export interface SessionSummary {
   origin?: 'subagent'
   cwd?: string
   agentPreset?: string
+  /** Server-side projections (title, stats, etc.) — the same view the web UI renders. */
+  projections?: {
+    asOfSeq: number
+    values: {
+      /** AI-generated session title (the "summary" the web UI shows). null for blank sessions. */
+      title?: string | null
+      [k: string]: unknown
+    }
+  }
 }
 
 /** One content part of a prompt. v0.0.1 only sends text. */

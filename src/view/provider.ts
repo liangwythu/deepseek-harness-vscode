@@ -451,6 +451,10 @@ function labelFor(s: SessionSummary, i: number): string {
   const stamp = new Date(s.updatedAt).toLocaleString()
   const id8 = s.sessionId.replace(/^session-/, '').slice(0, 8)
   const state = s.running ? '● ' : (s.blank ? '○ ' : '')
+  // Prefer the AI-generated projection title (the same "summary" the web UI
+  // shows); fall back to the sessionId hash prefix for blank/untitled sessions.
+  const title = s.projections?.values?.title
+  if (title && !s.blank) return `${state}${i + 1}. ${title} — ${stamp}`
   return `${state}${i + 1}. ${id8} — ${stamp}`
 }
 
