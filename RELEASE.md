@@ -1,7 +1,7 @@
 # Release Process
 
 This document describes how to cut and publish a release of
-**DeepSeek Harness for VS Code**. v0.0.1 ships as a GitHub Release with a VSIX
+**DeepSeek Harness Connector for VS Code**. v0.0.1 ships as a GitHub Release with a VSIX
 asset; Marketplace publishing is optional and documented at the end.
 
 ---
@@ -42,7 +42,7 @@ npm run spike              # → all 9 protocol steps ✓
 npm run integration-test   # → 11/11 checks ✓, closed loop OK
 
 # 1.5 package the VSIX
-npm run package            # → deepseek-harness-vscode-<ver>.vsix
+npm run package            # → harness-connector-deepseek-<ver>.vsix
 ```
 
 Manual checks:
@@ -63,7 +63,7 @@ Manual checks:
 
 ```bash
 # list what actually ships
-unzip -l deepseek-harness-vscode-<ver>.vsix
+unzip -l harness-connector-deepseek-<ver>.vsix
 ```
 
 Expected (v0.0.1 ≈ 8 files, ~18 KB):
@@ -88,7 +88,7 @@ If `src/`, `scripts/`, `test/`, `node_modules/`, or `*.map` appear, the
 
 ```bash
 # install into your VS Code
-code --install-extension deepseek-harness-vscode-<ver>.vsix
+code --install-extension harness-connector-deepseek-<ver>.vsix
 
 # then in VS Code:
 #   - reload window
@@ -102,7 +102,7 @@ code --install-extension deepseek-harness-vscode-<ver>.vsix
 Roll back:
 
 ```bash
-code --uninstall-extension lucasliang.deepseek-harness-vscode
+code --uninstall-extension lucasliang.harness-connector-deepseek
 ```
 
 ---
@@ -120,7 +120,7 @@ git push origin main --tags
 
 # 4.3 create the GitHub Release and attach the VSIX
 gh release create v<ver> \
-  deepseek-harness-vscode-<ver>.vsix \
+  harness-connector-deepseek-<ver>.vsix \
   --title "v<ver>" \
   --notes-file CHANGELOG.md \
   --verify-tag
@@ -151,7 +151,7 @@ If you prefer to keep the Marketplace publish manual, users can still install
 directly from the GitHub Release VSIX:
 
 ```bash
-code --install-extension deepseek-harness-vscode-<ver>.vsix
+code --install-extension harness-connector-deepseek-<ver>.vsix
 ```
 
 ---

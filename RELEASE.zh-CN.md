@@ -1,6 +1,6 @@
 # 发布流程
 
-本文档描述如何裁剪并发布 **DeepSeek Harness for VS Code** 的一个版本。
+本文档描述如何裁剪并发布 **DeepSeek Harness Connector for VS Code** 的一个版本。
 v0.0.1 以 GitHub Release + VSIX 资产的形式发布；Marketplace 发布是可选的，见末尾说明。
 
 ---
@@ -41,7 +41,7 @@ npm run spike              # → 全部 9 个协议步骤 ✓
 npm run integration-test   # → 11/11 检查 ✓, 闭环 OK
 
 # 1.5 打包 VSIX
-npm run package            # → deepseek-harness-vscode-<版本>.vsix
+npm run package            # → harness-connector-deepseek-<版本>.vsix
 ```
 
 手动检查：
@@ -62,7 +62,7 @@ npm run package            # → deepseek-harness-vscode-<版本>.vsix
 
 ```bash
 # 列出实际打包的内容
-unzip -l deepseek-harness-vscode-<版本>.vsix
+unzip -l harness-connector-deepseek-<版本>.vsix
 ```
 
 预期（v0.0.1 ≈ 10 个文件，约 40 KB）：
@@ -89,7 +89,7 @@ extension/media/icon.svg
 
 ```bash
 # 安装到你的 VS Code
-code --install-extension deepseek-harness-vscode-<版本>.vsix
+code --install-extension harness-connector-deepseek-<版本>.vsix
 
 # 然后在 VS Code 中：
 #   - 重新加载窗口
@@ -103,7 +103,7 @@ code --install-extension deepseek-harness-vscode-<版本>.vsix
 回滚：
 
 ```bash
-code --uninstall-extension lucasliang.deepseek-harness-vscode
+code --uninstall-extension lucasliang.harness-connector-deepseek
 ```
 
 ---
@@ -121,7 +121,7 @@ git push origin main --tags
 
 # 4.3 创建 GitHub Release 并附加 VSIX
 gh release create v<版本> \
-  deepseek-harness-vscode-<版本>.vsix \
+  harness-connector-deepseek-<版本>.vsix \
   --title "v<版本>" \
   --notes-file CHANGELOG.md \
   --verify-tag
@@ -150,7 +150,7 @@ npx vsce publish --no-dependencies --pre-release
 如果你更愿意手动发布到 Marketplace，用户仍可直接从 GitHub Release 的 VSIX 安装：
 
 ```bash
-code --install-extension deepseek-harness-vscode-<版本>.vsix
+code --install-extension harness-connector-deepseek-<版本>.vsix
 ```
 
 ---

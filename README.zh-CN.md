@@ -1,6 +1,8 @@
-# DeepSeek Harness for VS Code (v0.0.1)
+# DeepSeek Harness Connector for VS Code (v0.0.1)
 
 [English](./README.md) | [简体中文](./README.zh-CN.md)
+
+[![VS Code Marketplace](https://img.shields.io/badge/VS%20Code-Marketplace-blue.svg)](https://marketplace.visualstudio.com/items?itemName=lucasliang.harness-connector-deepseek)
 
 > DeepSeek Harness 的原生 VS Code 客户端。
 >
@@ -66,10 +68,16 @@ VS Code 连接到你已在运行的本地 `dsh web` 实例，读取浏览器中�
    # → http://127.0.0.1:3080
    ```
 
-2. 安装 VSIX（见 [Releases](#) 或从源码构建）：
+2. 从 [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=lucasliang.harness-connector-deepseek) 安装，或通过命令行：
 
    ```bash
-   code --install-extension deepseek-harness-vscode-0.0.1.vsix
+   code --install-extension lucasliang.harness-connector-deepseek
+   ```
+
+   或从 [GitHub Releases](https://github.com/liangwythu/deepseek-harness-vscode/releases) 安装 VSIX：
+
+   ```bash
+   code --install-extension harness-connector-deepseek-0.0.1.vsix
    ```
 
 3. 在 VS Code 中打开一个你想绑定到 Harness 工作区的文件夹。
@@ -123,7 +131,7 @@ npm install
 npm run build        # esbuild → dist/extension.js
 npm run watch        # 变更时自动重建
 npm run typecheck
-npm run package      # → deepseek-harness-vscode-0.0.1.vsix
+npm run package      # → harness-connector-deepseek-0.0.1.vsix
 ```
 
 在 VS Code 中按 `F5` 启动带有该扩展的扩展开发宿主。

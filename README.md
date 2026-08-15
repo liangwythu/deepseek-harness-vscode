@@ -1,6 +1,8 @@
-# DeepSeek Harness for VS Code (v0.0.1)
+# DeepSeek Harness Connector for VS Code (v0.0.1)
 
 [English](./README.md) | [简体中文](./README.zh-CN.md)
+
+[![VS Code Marketplace](https://img.shields.io/badge/VS%20Code-Marketplace-blue.svg)](https://marketplace.visualstudio.com/items?itemName=lucasliang.harness-connector-deepseek)
 
 > Native VS Code client for DeepSeek Harness.
 >
@@ -66,10 +68,16 @@ and never responds on your behalf.
    # → http://127.0.0.1:3080
    ```
 
-2. Install the VSIX (see [Releases](#) or build from source):
+2. Install from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=lucasliang.harness-connector-deepseek) or via command line:
 
    ```bash
-   code --install-extension deepseek-harness-vscode-0.0.1.vsix
+   code --install-extension lucasliang.harness-connector-deepseek
+   ```
+
+   Or install the VSIX from [GitHub Releases](https://github.com/liangwythu/deepseek-harness-vscode/releases):
+
+   ```bash
+   code --install-extension harness-connector-deepseek-0.0.1.vsix
    ```
 
 3. Open a folder in VS Code that you want to bind to a Harness workspace.
@@ -123,7 +131,7 @@ npm install
 npm run build        # esbuild → dist/extension.js
 npm run watch        # rebuild on change
 npm run typecheck
-npm run package      # → deepseek-harness-vscode-0.0.1.vsix
+npm run package      # → harness-connector-deepseek-0.0.1.vsix
 ```
 
 Press `F5` in VS Code to launch an Extension Development Host with the extension loaded.
