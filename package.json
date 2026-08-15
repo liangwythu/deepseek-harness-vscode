@@ -7,7 +7,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/deepseek-harness-community/deepseek-harness-vscode"
+    "url": "https://github.com/liangwythu/deepseek-harness-vscode"
   },
   "engines": {
     "vscode": "^1.85.0"

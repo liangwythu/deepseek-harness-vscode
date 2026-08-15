@@ -1,5 +1,7 @@
 # DeepSeek Harness for VS Code (v0.0.1)
 
+[English](./README.md) | [简体中文](./README.zh-CN.md)
+
 > Native VS Code client for DeepSeek Harness.
 >
 > Connect to your existing local Harness instance and continue the same workspaces and sessions directly inside VS Code.
@@ -95,7 +97,7 @@ and never responds on your behalf.
 
 ## Architecture
 
-See [ARCHITECTURE.md](./ARCHITECTURE.md) for the one-page design and the protocol contract.
+See [ARCHITECTURE.md](./ARCHITECTURE.md) for the one-page design and the protocol contract. (中文版: [ARCHITECTURE.zh-CN.md](./ARCHITECTURE.zh-CN.md))
 
 ## Protocol fixtures
 

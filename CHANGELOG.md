@@ -86,4 +86,4 @@ Same Workspace. Same Session. Same Agent Runtime.
 - Unknown harness event types are ignored (the protocol is merge-extensible);
   they do not crash the client but also do not render.
 
-[0.0.1]: https://github.com/deepseek-harness-community/deepseek-harness-vscode/releases/tag/v0.0.1
+[0.0.1]: https://github.com/liangwythu/deepseek-harness-vscode/releases/tag/v0.0.1
