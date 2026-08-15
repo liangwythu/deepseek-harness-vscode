@@ -24,6 +24,7 @@ import {
 import type { UiState } from './state.ts'
 import { connectionToUi, sessionsToUi, workspaceToUi } from './state.ts'
 import type { WebviewAction } from '../view/provider.ts'
+import type { HarnessWebviewViewProvider } from '../view/provider.ts'
 import { CompositeDisposable } from '../disposable.ts'
 import { collectEditorContext, mergeContext, parseAtFileReferences } from '../context/collector.ts'
 
@@ -42,6 +43,7 @@ export interface ControllerDeps {
   openHarnessHome: () => void
   moveToSecondarySideBar: () => Promise<void>
   log: { info: (m: string) => void; error: (m: string) => void }
+  provider?: HarnessWebviewViewProvider
 }
 
 export class AppController {
@@ -302,6 +304,28 @@ export class AppController {
       const msg = e instanceof Error ? e.message : String(e)
       this.d.notifyError(msg)
     }
+  }
+
+  /** Append an @file reference to the webview input (called from explorer/context menu). */
+  addToChat(uri: vscode.Uri): void {
+    const filePath = uri.fsPath
+    const token = `@file:${filePath} `
+    this.d.provider?.postToWebview({ kind: 'appendInput', text: token })
+  }
+
+  /** Append an @file reference (path + line range) for the current selection to the chat input. */
+  sendSelection(): void {
+    const editor = this.d.vscodeAPI.window.activeTextEditor
+    if (!editor || editor.selection.isEmpty) {
+      this.d.notifyError('No text selected in the active editor.')
+      return
+    }
+    const filePath = editor.document.fileName
+    const startLine = editor.selection.start.line + 1
+    const endLine = editor.selection.end.line + 1
+    const range = startLine === endLine ? `:L${startLine}` : `:L${startLine}-L${endLine}`
+    const token = `@file:${filePath}${range} `
+    this.d.provider?.postToWebview({ kind: 'appendInput', text: token })
   }
 
   toggleSystemMessages(): void {

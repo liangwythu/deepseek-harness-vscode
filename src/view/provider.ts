@@ -51,6 +51,7 @@ export type WebviewAction =
   | { type: 'openWebUI' }
   | { type: 'toggleSystemMessages' }
   | { type: 'moveToSecondarySideBar' }
+  | { type: 'appendInput'; text: string }
 
 export interface ProviderDeps {
   client: HarnessClient
@@ -89,6 +90,11 @@ export class HarnessWebviewViewProvider implements vscode.WebviewViewProvider {
   private postState(state: UiState): void {
     const withIcon: UiState = this.brandIconUri ? { ...state, brandIconUri: this.brandIconUri } : state
     void this.view?.webview.postMessage({ kind: 'state', state: withIcon })
+  }
+
+  /** Send an arbitrary message to the webview (e.g. appendInput from menu commands). */
+  postToWebview(msg: Record<string, unknown>): void {
+    void this.view?.webview.postMessage(msg)
   }
 
   // ─── HTML composition ──────────────────────────────────────────────────────

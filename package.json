@@ -81,8 +81,33 @@
         "command": "deepseekHarness.openInSecondarySideBar",
         "title": "DeepSeek Harness: Move to Right Side Bar",
         "category": "DeepSeek Harness"
+      },
+      {
+        "command": "deepseekHarness.addFileToChat",
+        "title": "Add to Harness Chat",
+        "category": "DeepSeek Harness"
+      },
+      {
+        "command": "deepseekHarness.sendSelectionToChat",
+        "title": "Send Selection to Harness",
+        "category": "DeepSeek Harness"
       }
     ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "deepseekHarness.addFileToChat",
+          "group": "deepseek-harness"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "deepseekHarness.sendSelectionToChat",
+          "when": "editorHasSelection",
+          "group": "deepseek-harness"
+        }
+      ]
+    },
     "configuration": {
       "title": "DeepSeek Harness",
       "properties": {
@@ -112,6 +137,7 @@
     "gen-icon": "tsx scripts/gen-icon.ts",
     "integration-test": "tsx scripts/integration-test.ts",
     "package": "vsce package --no-dependencies",
+    "deploy": "npm run build && vsce package --no-dependencies && code --install-extension harness-connector-deepseek-0.0.2.vsix --force",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

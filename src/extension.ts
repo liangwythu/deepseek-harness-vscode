@@ -99,6 +99,7 @@ export function activate(context: vscode.ExtensionContext): void {
       }
     },
     log: { info: (m) => log.info(m), error: (m) => log.error(m) },
+    provider,
   })
   disposables.add(controller.start())
 
@@ -117,6 +118,12 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('deepseekHarness.newSession', wireAction('newSession')),
     vscode.commands.registerCommand('deepseekHarness.refreshSessions', wireAction('refreshSessions')),
     vscode.commands.registerCommand('deepseekHarness.openInSecondarySideBar', wireAction('moveToSecondarySideBar')),
+    vscode.commands.registerCommand('deepseekHarness.addFileToChat', (uri: vscode.Uri) => {
+      controller.addToChat(uri)
+    }),
+    vscode.commands.registerCommand('deepseekHarness.sendSelectionToChat', () => {
+      void controller.sendSelection()
+    }),
   )
 
   // ─── config-change handler (§17: reconnect + re-wire) ──────────────────────

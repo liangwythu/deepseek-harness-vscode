@@ -361,6 +361,13 @@ export const CLIENT_SCRIPT = /* js */ `
   window.addEventListener('message', (e) => {
     const msg = e.data;
     if (msg && msg.kind === 'state') render(msg.state);
+    if (msg && msg.kind === 'appendInput') {
+      const ta = $('input');
+      const sep = ta.value.length > 0 && !ta.value.endsWith(' ') ? ' ' : '';
+      ta.value += sep + msg.text;
+      ta.focus();
+      updateContextPreview();
+    }
   });
 
   $('session-select').addEventListener('change', (e) => {
