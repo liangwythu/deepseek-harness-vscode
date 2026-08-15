@@ -13,3 +13,4 @@ tsconfig.json
 .npmignore
 RELEASE.md
 media/origin.png
+.trae/**
