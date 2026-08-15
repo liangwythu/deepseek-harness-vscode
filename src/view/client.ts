@@ -313,6 +313,50 @@ export const CLIENT_SCRIPT = /* js */ `
     return d;
   }
 
+  // ─── @file parsing (webview-side preview only; authoritative parse is in extension host) ──
+  const AT_FILE_RE = /@file:([^\s:]+(?::\\?[^\s:]*)*)(?::L(\d+)(?:-L(\d+))?)?/g;
+  function parseAtFilePreview(text) {
+    const files = [];
+    let m;
+    const re = new RegExp(AT_FILE_RE.source, 'g');
+    while ((m = re.exec(text)) !== null) {
+      const entry = { path: m[1].replace(/\\\\/g, '/'), lineStart: m[2] ? parseInt(m[2], 10) : undefined, lineEnd: m[3] ? parseInt(m[3], 10) : undefined };
+      files.push(entry);
+    }
+    return files;
+  }
+
+  function shortPath(p) {
+    const parts = p.split('/');
+    if (parts.length <= 3) return p;
+    return '…/' + parts.slice(-2).join('/');
+  }
+
+  function updateContextPreview() {
+    const ta = $('input');
+    const text = ta.value;
+    const atFiles = parseAtFilePreview(text);
+    const bar = $('context-bar');
+    const fileChip = $('context-active-file');
+    const selChip = $('context-selection');
+    const filesContainer = $('context-files');
+
+    // @file chips
+    filesContainer.innerHTML = '';
+    for (const f of atFiles) {
+      const chip = document.createElement('span');
+      chip.className = 'ctx-chip';
+      let label = shortPath(f.path);
+      if (f.lineStart) label += ':L' + f.lineStart + (f.lineEnd ? '-L' + f.lineEnd : '');
+      chip.textContent = label;
+      filesContainer.appendChild(chip);
+    }
+
+    // Show/hide bar
+    const hasAny = atFiles.length > 0;
+    bar.style.display = hasAny ? '' : 'none';
+  }
+
   // ─── event wiring ───────────────────────────────────────────────────────────
   window.addEventListener('message', (e) => {
     const msg = e.data;
@@ -334,19 +378,22 @@ export const CLIENT_SCRIPT = /* js */ `
       e.preventDefault(); sendPrompt();
     }
   });
+  // Update context preview as user types @file references
+  $('input').addEventListener('input', () => updateContextPreview());
 
-  // Send prompt: do NOT clear textarea here. The optimistic user echo from
-  // extension host bumps renderVersion, which triggers a re-render. But to
-  // avoid flashing old input on failure, we clear optimistically HERE and
-  // rely on the controller. If creation fails, snapshot won't carry the echo
-  // but we won't restore text either (it will be on the lost-input UX —
-  // acceptable for v0.0.2).
+  // Send prompt: parse @file refs, pass context to extension host.
+  // The extension host will further enrich context with editor state.
   function sendPrompt() {
     const ta = $('input');
     const text = ta.value.trim();
     if (!text) return;
     ta.value = '';
-    post({ type: 'sendPrompt', text });
+    // Parse @file refs for preview (extension host does authoritative parse)
+    const atFiles = parseAtFilePreview(text);
+    const context = atFiles.length > 0 ? { files: atFiles } : undefined;
+    post({ type: 'sendPrompt', text, context });
+    // Reset context preview
+    updateContextPreview();
   }
 
   post({ type: 'connect' });

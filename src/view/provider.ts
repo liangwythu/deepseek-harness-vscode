@@ -46,7 +46,7 @@ export type WebviewAction =
   | { type: 'selectSession'; sessionId: string }
   | { type: 'newSession' }
   | { type: 'refreshSessions' }
-  | { type: 'sendPrompt'; text: string }
+  | { type: 'sendPrompt'; text: string; context?: import('../harness/protocol.ts').PromptContext }
   | { type: 'stop' }
   | { type: 'openWebUI' }
   | { type: 'toggleSystemMessages' }

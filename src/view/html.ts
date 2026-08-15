@@ -35,10 +35,16 @@ export const HTML_SKELETON = /* html */ `
 
   <div id="input-area">
     <textarea id="input" placeholder="Send a prompt… (Enter to send, Shift+Enter for newline)" rows="3"></textarea>
+    <div id="context-bar" class="context-bar" style="display:none;">
+      <span id="context-active-file" class="ctx-chip" style="display:none;"></span>
+      <span id="context-selection" class="ctx-chip selection" style="display:none;">selection</span>
+      <span id="context-files" class="ctx-chips"></span>
+    </div>
     <div class="input-row">
       <button id="send">Send</button>
       <button id="stop" class="secondary" disabled>Stop</button>
     </div>
+    <div id="atfile-hint" class="atfile-hint">Tip: use @file:/path/to/file or @file:/path:L10-L20 to attach files</div>
   </div>
 
   <div id="open-web"><a id="open-web-link">Open in DeepSeek Harness Web UI ↗</a></div>

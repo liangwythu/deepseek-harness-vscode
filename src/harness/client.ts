@@ -23,7 +23,8 @@ import { CompositeDisposable } from '../disposable.ts'
 import { EventBuffer, MuxStream, type MuxStatus } from './events.ts'
 import type {
   ClientRequest, HistoryEntry, HostDescribe, MuxFrame, PromptContentPart,
-  RpcError, ServerResponse, SessionId, SessionSummary, WorkspaceId, WorkspaceView,
+  PromptContext, RpcError, ServerResponse, SessionId, SessionSummary,
+  WorkspaceId, WorkspaceView,
 } from './protocol.ts'
 
 /** A typed view onto a business error from the harness. */
@@ -143,10 +144,17 @@ export class HarnessClient implements Disposable {
     return this.rpc('session.create', opts)
   }
 
-  /** Send a text prompt to an existing session (mode 'queue' = normal send). */
-  prompt(sessionId: SessionId, text: string, clientTimeZone?: string): Promise<{ accepted: true; command?: { kind: 'success'; text?: string } }> {
+  /** Send a text prompt to an existing session (mode 'queue' = normal send).
+   *  Optional `context` carries VS Code editor metadata (file refs, selection,
+   *  active file) as a separate field — NOT merged into `content` — so the
+   *  conversation KV cache stays consistent. */
+  prompt(sessionId: SessionId, text: string, clientTimeZone?: string, context?: PromptContext): Promise<{ accepted: true; command?: { kind: 'success'; text?: string } }> {
     const content: PromptContentPart[] = [{ type: 'text', text }]
-    return this.rpc('session.prompt', { sessionId, mode: 'queue', content, clientTimeZone })
+    const payload: Record<string, unknown> = { sessionId, mode: 'queue', content, clientTimeZone }
+    if (context && (context.files?.length || context.selection || context.activeFile)) {
+      payload.context = context
+    }
+    return this.rpc('session.prompt', payload)
   }
 
   /** Cancel the session's active turn (preserves pending inbox work). */

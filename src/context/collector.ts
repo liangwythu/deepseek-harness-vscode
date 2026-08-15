@@ -1,0 +1,113 @@
+/**
+ * Context collector — gathers VS Code editor state into a PromptContext
+ * for injection into the session.prompt payload.
+ *
+ * Two responsibilities:
+ *   1. Parse @file references from the prompt text.
+ *      Syntax: @file:/abs/path          → whole file
+ *              @file:/abs/path:L10      → single line
+ *              @file:/abs/path:L10-L20  → line range
+ *      The @file tokens are STRIPPED from the prompt text so they don't
+ *      pollute the conversation KV cache.
+ *
+ *   2. Collect active editor state (selection, active file path).
+ *      Only non-empty selections are included. The active file is always
+ *      included when an editor is open.
+ *
+ * KV cache consistency: context travels in `payload.context`, NOT in
+ * `payload.content`. The backend treats it as ephemeral metadata.
+ */
+
+import type * as vscode from 'vscode'
+import type {
+  ActiveFileContext, FileReference, PromptContext, SelectionContext,
+} from '../harness/protocol.ts'
+
+/** Regex matching @file:path, @file:path:L10, @file:path:L10-L20.
+ *  Path may contain any chars except whitespace; line ranges use L<digits>. */
+const AT_FILE_RE = /@file:([^\s:]+(?::\\?[^\s:]*)*)(?::L(\d+)(?:-L(\d+))?)?/g
+
+/**
+ * Extract @file references from prompt text. Returns the cleaned text
+ * (with @file tokens removed) and the parsed FileReference array.
+ */
+export function parseAtFileReferences(text: string): {
+  cleanedText: string
+  files: FileReference[]
+} {
+  const files: FileReference[] = []
+  const cleanedText = text.replace(AT_FILE_RE, (_match, rawPath: string, lineStartStr?: string, lineEndStr?: string) => {
+    // Normalize path: handle Windows drive letters (C:\... stays as-is)
+    const filePath = rawPath.replace(/\\/g, '/')
+    const ref: FileReference = { path: filePath }
+    if (lineStartStr) {
+      ref.lineStart = parseInt(lineStartStr, 10)
+      if (lineEndStr) ref.lineEnd = parseInt(lineEndStr, 10)
+    }
+    files.push(ref)
+    return '' // strip the @file token from the prompt text
+  }).replace(/\s{2,}/g, ' ').trim()
+
+  return { cleanedText, files }
+}
+
+/**
+ * Collect context from the active VS Code editor.
+ * Returns undefined if there's no meaningful context to attach.
+ */
+export function collectEditorContext(vscodeWindow: typeof vscode.window): PromptContext | undefined {
+  const editor = vscodeWindow.activeTextEditor
+  if (!editor) return undefined
+
+  const ctx: PromptContext = {}
+
+  // Active file
+  const activeFile: ActiveFileContext = {
+    path: editor.document.uri.fsPath.replace(/\\/g, '/'),
+  }
+  ctx.activeFile = activeFile
+
+  // Selection (only non-empty)
+  const sel = editor.selection
+  if (!sel.isEmpty) {
+    const selectedText = editor.document.getText(sel)
+    if (selectedText.trim()) {
+      const selection: SelectionContext = {
+        text: selectedText,
+        path: activeFile.path,
+        lineStart: sel.start.line + 1, // 1-indexed
+        lineEnd: sel.end.line + 1,
+      }
+      ctx.selection = selection
+    }
+  }
+
+  return ctx
+}
+
+/**
+ * Merge @file references into an existing PromptContext (from editor state).
+ * @file refs take priority — they're explicit user intent.
+ */
+export function mergeContext(
+  editorCtx: PromptContext | undefined,
+  atFileRefs: FileReference[],
+): PromptContext | undefined {
+  if (atFileRefs.length === 0 && !editorCtx) return undefined
+
+  const merged: PromptContext = { ...editorCtx }
+
+  if (atFileRefs.length > 0) {
+    // Deduplicate by path+range
+    const existing = new Set(
+      (merged.files ?? []).map(f => `${f.path}:${f.lineStart ?? ''}:${f.lineEnd ?? ''}`)
+    )
+    const newRefs = atFileRefs.filter(f => {
+      const key = `${f.path}:${f.lineStart ?? ''}:${f.lineEnd ?? ''}`
+      return !existing.has(key)
+    })
+    merged.files = [...(merged.files ?? []), ...newRefs]
+  }
+
+  return merged
+}
