@@ -21,7 +21,13 @@ import type {
   UserMessageData,
 } from './harness/protocol.ts'
 
-export interface UserItem { kind: 'user'; seq: number; text: string; source?: string }
+export interface UserItem {
+  kind: 'user'; seq: number; text: string; source?: string
+  /** True when this user/message was injected by a plugin (e.g.
+   *  @deepseek-ai/dsh-system-prompt runtime context, user-approval notices)
+   *  rather than typed by a human. Hidden by default (§showSystemMessages). */
+  system?: boolean
+}
 export interface AssistantItem { kind: 'assistant'; seq: number; text: string; reasoning?: string; toolCalls: Array<{ callId?: string; name?: string; arguments?: string }>; usage?: { inputTokens?: number; outputTokens?: number }; streaming: boolean }
 export interface ToolCallItem { kind: 'tool-call'; seq: number; callId: string; name: string; arguments: string }
 export interface ToolResultItem { kind: 'tool-result'; seq: number; callId?: string; text: string; isError: boolean }
@@ -36,6 +42,8 @@ export interface SessionSnapshot {
   items: RenderItem[]
   /** Seq of the last event folded into the model (for diagnostics). */
   lastSeq: number
+  /** Number of plugin-injected system messages currently hidden. */
+  systemMessageCount: number
 }
 
 /** Extract displayable text from a content-block array (defensive — upstream is merge-extensible). */
@@ -75,6 +83,15 @@ function sourceLabel(source: unknown): string | undefined {
   return undefined
 }
 
+/** True when the user/message was injected by a plugin/agent rather than typed
+ *  by a human. source.kind === 'user' is the human-typed path; anything else
+ *  (kind 'plugin', 'agent', etc.) is a system injection to hide by default. */
+function isSystemSource(source: unknown): boolean {
+  if (!source || typeof source !== 'object') return false
+  const s = source as { kind?: string }
+  return s.kind !== 'user'
+}
+
 /** Pretty-print a tool arguments JSON string; fall back to the raw string. */
 export function prettyToolArgs(raw: string): string {
   if (!raw) return ''
@@ -86,10 +103,18 @@ export class SessionModel {
   private running = false
   private title: string | undefined
   private lastSeq = -1
+  /** Whether plugin-injected user/messages (system prompts, approval notices)
+   *  are included in the snapshot. Hidden by default. */
+  private showSystemMessages = false
   /** Pending assistant text per (turn,step) while chunks stream, before assistant/message finalizes. */
   private streaming = new Map<string, { text: string; reasoning: string }>()
 
   constructor(private readonly sessionId: SessionId) {}
+
+  /** Toggle visibility of plugin-injected system messages. Off by default. */
+  setShowSystemMessages(show: boolean): void {
+    this.showSystemMessages = show
+  }
 
   /** Seed the model from a history page (applied in seq order). */
   loadHistory(events: SessionEvent[]): void {
@@ -130,12 +155,17 @@ export class SessionModel {
   }
 
   snapshot(): SessionSnapshot {
+    const systemMessageCount = this.items.filter(i => i.kind === 'user' && i.system).length
+    const items = this.showSystemMessages
+      ? this.items
+      : this.items.filter(i => !(i.kind === 'user' && i.system))
     return {
       sessionId: this.sessionId,
       title: this.title,
       running: this.running,
-      items: this.items.map(i => ({ ...i })),
+      items: items.map(i => ({ ...i })),
       lastSeq: this.lastSeq,
+      systemMessageCount,
     }
   }
 
@@ -149,7 +179,11 @@ export class SessionModel {
       this.items.pop()
     }
     if (!text) return
-    this.items.push({ kind: 'user', seq: event.seq, text, source: sourceLabel(d.source) })
+    // A user/message with source.kind !== 'user' is plugin-injected (e.g.
+    // @deepseek-ai/dsh-system-prompt runtime context, user-approval notices).
+    // Flag it so the view can hide it by default.
+    const system = isSystemSource(d.source)
+    this.items.push({ kind: 'user', seq: event.seq, text, source: sourceLabel(d.source), system })
   }
 
   private applyAssistantChunk(event: SessionEvent): void {

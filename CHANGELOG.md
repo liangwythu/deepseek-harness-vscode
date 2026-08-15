@@ -43,6 +43,17 @@ Same Workspace. Same Session. Same Agent Runtime.
 - **Show Logs** command → the `DeepSeek Harness` output channel.
 - **Sidebar webview** (vanilla JS, no React) with connection status, workspace,
   session dropdown, message list, input + Send/Stop.
+- **Right-side docking** — a "Move to Right Side Bar" command (⇲ button in the
+  webview header) relocates the view to the secondary side bar so it no longer
+  competes with the file explorer.
+- **System-message hiding** — plugin-injected `user/message` frames (e.g.
+  `@deepseek-ai/dsh-system-prompt` runtime context, `user-approval` notices)
+  are detected via `source.kind !== 'user'` and hidden by default. A `SYS`
+  toggle in the header reveals them; the `deepseekHarness.showSystemMessages`
+  setting controls the default.
+- **Brand icon** — a generated 128×128 PNG (`media/icon.png`) serves as the
+  Marketplace icon and the webview header logo; the SVG activity-bar icon uses
+  `currentColor` to adapt to the theme. Regenerate with `npm run gen-icon`.
 - **Protocol fixtures** (`test/fixtures/`) — sanitized captures of the live wire
   format for detecting upstream protocol drift.
 - **Protocol spike** (`scripts/protocol-spike.ts`) and **integration test**

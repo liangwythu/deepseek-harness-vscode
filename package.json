@@ -25,6 +25,7 @@
     "onStartupFinished"
   ],
   "main": "./dist/extension.js",
+  "icon": "media/icon.png",
   "contributes": {
     "viewsContainers": {
       "activitybar": [
@@ -75,6 +76,11 @@
         "command": "deepseekHarness.refreshSessions",
         "title": "DeepSeek Harness: Refresh Sessions",
         "category": "DeepSeek Harness"
+      },
+      {
+        "command": "deepseekHarness.openInSecondarySideBar",
+        "title": "DeepSeek Harness: Move to Right Side Bar",
+        "category": "DeepSeek Harness"
       }
     ],
     "configuration": {
@@ -89,6 +95,11 @@
           "type": "number",
           "default": 3080,
           "markdownDescription": "Port of the local `dsh web` instance. The default `dsh web` port is `3080`."
+        },
+        "deepseekHarness.showSystemMessages": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Show plugin-injected system messages (e.g. `@deepseek-ai/dsh-system-prompt` runtime context, approval-policy notices). Hidden by default to reduce noise."
         }
       }
     }
@@ -98,6 +109,7 @@
     "build": "node esbuild.mjs --production",
     "watch": "node esbuild.mjs --watch",
     "spike": "tsx scripts/protocol-spike.ts",
+    "gen-icon": "tsx scripts/gen-icon.ts",
     "integration-test": "tsx scripts/integration-test.ts",
     "package": "vsce package --no-dependencies",
     "typecheck": "tsc --noEmit"

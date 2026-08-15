@@ -37,6 +37,7 @@ export function activate(context: vscode.ExtensionContext): void {
   // ─── read config ────────────────────────────────────────────────────────────
   const cfg = readConfig()
   let client = new HarnessClient({ host: cfg.host, port: cfg.port, log: (m) => log.info(m) })
+  let showSystemMessages = cfg.showSystemMessages
 
   // ─── orchestrator state ─────────────────────────────────────────────────────
   const state: UiState = {
@@ -44,6 +45,8 @@ export function activate(context: vscode.ExtensionContext): void {
     sessions: [],
     sending: false,
     canStop: false,
+    showSystemMessages,
+    systemMessageCount: 0,
   }
   let workspace: WorkspaceView | undefined | null
   let sessions: SessionSummary[] = []
@@ -61,8 +64,11 @@ export function activate(context: vscode.ExtensionContext): void {
     state.workspace = workspace ? workspaceToUi(workspace) : (workspace === null ? null : undefined)
     state.sessions = sessionsToUi(sessions)
     state.activeSessionId = activeSessionId
-    state.snapshot = model?.snapshot()
-    state.canStop = model?.snapshot().running === true
+    const snap = model?.snapshot()
+    state.snapshot = snap
+    state.canStop = snap?.running === true
+    state.showSystemMessages = showSystemMessages
+    state.systemMessageCount = snap?.systemMessageCount ?? 0
     for (const l of stateListeners) {
       try { l(state) } catch { /* listener errors must not propagate */ }
     }
@@ -107,6 +113,8 @@ export function activate(context: vscode.ExtensionContext): void {
       case 'sendPrompt': await sendPrompt(action.text); break
       case 'stop': await stopActive(); break
       case 'openWebUI': openWebUI(); break
+      case 'toggleSystemMessages': toggleSystemMessages(); break
+      case 'moveToSecondarySideBar': void moveToSecondarySideBar(); break
     }
   }
 
@@ -171,6 +179,7 @@ export function activate(context: vscode.ExtensionContext): void {
   async function selectSession(sessionId: SessionId): Promise<void> {
     activeSessionId = sessionId
     model = new SessionModel(sessionId)
+    model.setShowSystemMessages(showSystemMessages)
     pushState()
     try {
       await refetchHistory(sessionId)
@@ -262,6 +271,28 @@ export function activate(context: vscode.ExtensionContext): void {
     void vscode.env.openExternal(vscode.Uri.parse(`http://${c.host}:${c.port}/`))
   }
 
+  function toggleSystemMessages(): void {
+    showSystemMessages = !showSystemMessages
+    model?.setShowSystemMessages(showSystemMessages)
+    pushState()
+  }
+
+  async function moveToSecondarySideBar(): Promise<void> {
+    // Dock the session view into the right-hand (secondary) side bar, so it
+    // stops competing with the file explorer on the left. Uses VS Code's
+    // internal moveViews command; falls back to a guided hint if unavailable.
+    try {
+      await vscode.commands.executeCommand('workbench.action.moveViews', {
+        viewIds: ['deepseekHarness.sessionView'],
+        destinationId: 'workbench.view.auxiliarybar',
+      })
+    } catch {
+      void vscode.window.showInformationMessage(
+        'Right-click the "DeepSeek Harness" view title and choose "Move to Secondary Side Bar" to dock it on the right.',
+      )
+    }
+  }
+
   // ─── commands ───────────────────────────────────────────────────────────────
   context.subscriptions.push(
     vscode.commands.registerCommand('deepseekHarness.connect', () => handleAction({ type: 'connect' })),
@@ -270,6 +301,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('deepseekHarness.showLogs', () => log.show()),
     vscode.commands.registerCommand('deepseekHarness.newSession', () => handleAction({ type: 'newSession' })),
     vscode.commands.registerCommand('deepseekHarness.refreshSessions', () => handleAction({ type: 'refreshSessions' })),
+    vscode.commands.registerCommand('deepseekHarness.openInSecondarySideBar', () => handleAction({ type: 'moveToSecondarySideBar' })),
   )
 
   // ─── config change ──────────────────────────────────────────────────────────
@@ -289,6 +321,12 @@ export function activate(context: vscode.ExtensionContext): void {
       disposables.add(client.onMuxStatusChange((s) => { muxStatus = s; pushState() }))
       void doConnect()
     }
+    if (next.showSystemMessages !== showSystemMessages) {
+      showSystemMessages = next.showSystemMessages
+      cfg.showSystemMessages = next.showSystemMessages
+      model?.setShowSystemMessages(showSystemMessages)
+      pushState()
+    }
   }))
 
   // Auto-connect on activation (the spike validated the loopback instance).
@@ -299,9 +337,10 @@ export function deactivate(): void {
   // Disposables are owned by context.subscriptions; nothing to do here.
 }
 
-function readConfig(): { host: string; port: number } {
+function readConfig(): { host: string; port: number; showSystemMessages: boolean } {
   const cfg = vscode.workspace.getConfiguration(SECTION)
   const host = cfg.get<string>('host') ?? '127.0.0.1'
   const port = cfg.get<number>('port') ?? 3080
-  return { host, port }
+  const showSystemMessages = cfg.get<boolean>('showSystemMessages') ?? false
+  return { host, port, showSystemMessages }
 }

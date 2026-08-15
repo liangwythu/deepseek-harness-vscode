@@ -29,6 +29,12 @@ export interface UiState {
   snapshot?: SessionSnapshot
   sending: boolean
   canStop: boolean
+  /** Whether plugin-injected system messages are shown. */
+  showSystemMessages: boolean
+  /** Count of hidden system messages (for the toggle badge). */
+  systemMessageCount: number
+  /** URI of the brand icon, webview-resolved (for the header). */
+  brandIconUri?: string
 }
 
 /** Actions the webview posts back to the extension. */
@@ -41,6 +47,8 @@ export type WebviewAction =
   | { type: 'sendPrompt'; text: string }
   | { type: 'stop' }
   | { type: 'openWebUI' }
+  | { type: 'toggleSystemMessages' }
+  | { type: 'moveToSecondarySideBar' }
 
 export interface ProviderDeps {
   client: HarnessClient
@@ -53,6 +61,8 @@ export interface ProviderDeps {
 export class HarnessWebviewViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'deepseekHarness.sessionView'
   private view: vscode.WebviewView | undefined
+  /** Webview-resolved brand icon URI (set when the view resolves). */
+  private brandIconUri: string | undefined
 
   constructor(private readonly deps: ProviderDeps) {}
 
@@ -62,6 +72,9 @@ export class HarnessWebviewViewProvider implements vscode.WebviewViewProvider {
       enableScripts: true,
       localResourceRoots: [this.deps.extensionUri],
     }
+    // Resolve the brand icon (PNG) so the webview header can load it.
+    const iconUri = vscode.Uri.joinPath(this.deps.extensionUri, 'media', 'icon.png')
+    this.brandIconUri = view.webview.asWebviewUri(iconUri).toString()
     view.webview.html = this.html(view.webview)
     view.webview.onDidReceiveMessage((msg: WebviewAction) => {
       this.deps.dispatch(msg)
@@ -76,7 +89,9 @@ export class HarnessWebviewViewProvider implements vscode.WebviewViewProvider {
   refresh(state: UiState): void { this.postState(state) }
 
   private postState(state: UiState): void {
-    void this.view?.webview.postMessage({ kind: 'state', state })
+    // Inject the brand icon URI on every push (the webview can't resolve it itself).
+    const withIcon: UiState = this.brandIconUri ? { ...state, brandIconUri: this.brandIconUri } : state
+    void this.view?.webview.postMessage({ kind: 'state', state: withIcon })
   }
 
   // ─── HTML + inline script (nonce-gated CSP) ─────────────────────────────────
@@ -109,6 +124,12 @@ export class HarnessWebviewViewProvider implements vscode.WebviewViewProvider {
     background: var(--vscode-sideBar-background);
   }
   .bar { padding: 8px 10px; border-bottom: 1px solid var(--vscode-panel-border, rgba(128,128,128,.2)); }
+  .brand-bar { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--vscode-panel-border, rgba(128,128,128,.2)); }
+  .brand-bar img { width: 20px; height: 20px; flex-shrink: 0; }
+  .brand-bar .brand-name { font-weight: 600; font-size: 12px; flex: 1; }
+  .brand-bar .toolbar { display: flex; gap: 2px; }
+  .brand-bar .toolbar button { padding: 2px 6px; font-size: 11px; }
+  .toggle-badge { font-size: 9px; background: var(--vscode-badge-background); color: var(--vscode-badge-foreground); border-radius: 8px; padding: 0 4px; margin-left: 2px; }
   .row { display: flex; gap: 6px; align-items: center; margin: 4px 0; }
   .status { display: flex; align-items: center; gap: 6px; font-weight: 600; }
   .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
@@ -137,6 +158,8 @@ export class HarnessWebviewViewProvider implements vscode.WebviewViewProvider {
   .msg { padding: 6px 8px; border-radius: 4px; white-space: pre-wrap; word-break: break-word; }
   .msg.user { background: var(--vscode-input-background); border-left: 3px solid var(--vscode-charts-blue, #1b7fbd); }
   .msg.user .role { color: var(--vscode-charts-blue, #1b7fbd); }
+  .msg.user.system { opacity: .65; border-left-color: var(--vscode-disabledForeground, #888); font-size: 11px; }
+  .msg.user.system .role { color: var(--vscode-descriptionForeground); }
   .msg.assistant { background: var(--vscode-editor-background); border-left: 3px solid var(--vscode-charts-green, #2da44e); }
   .msg.assistant .role { color: var(--vscode-charts-green, #2da44e); }
   .msg .role { font-weight: 600; font-size: 11px; display: block; margin-bottom: 2px; }
@@ -162,6 +185,15 @@ export class HarnessWebviewViewProvider implements vscode.WebviewViewProvider {
 </style>
 </head>
 <body>
+  <div class="brand-bar">
+    <img id="brand-icon" alt="" style="display:none;" />
+    <span class="brand-name">DeepSeek Harness</span>
+    <div class="toolbar">
+      <button id="toggle-sys" class="secondary icon" title="Show/hide system messages (runtime context, plugin injections)" style="display:none;">SYS</button>
+      <button id="move-right" class="secondary icon" title="Move to right side bar">⇲</button>
+    </div>
+  </div>
+
   <div class="bar">
     <div class="status">
       <span id="dot" class="dot disconnected"></span>
@@ -211,6 +243,19 @@ export class HarnessWebviewViewProvider implements vscode.WebviewViewProvider {
   }
 
   function render(state) {
+    // Brand bar
+    const icon = $('brand-icon');
+    if (state.brandIconUri) { icon.src = state.brandIconUri; icon.style.display = ''; }
+    const sysBtn = $('toggle-sys');
+    if (state.systemMessageCount > 0) {
+      sysBtn.style.display = '';
+      sysBtn.classList.toggle('active', state.showSystemMessages);
+      sysBtn.textContent = state.showSystemMessages ? 'SYS✓' : 'SYS';
+      sysBtn.title = (state.showSystemMessages ? 'Hide' : 'Show') + ' ' + state.systemMessageCount + ' system message(s)';
+    } else {
+      sysBtn.style.display = 'none';
+    }
+
     // Connection
     const conn = state.connection;
     setDot(conn);
@@ -306,11 +351,11 @@ export class HarnessWebviewViewProvider implements vscode.WebviewViewProvider {
       return d;
     }
     const d = document.createElement('div');
-    d.className = 'msg ' + item.kind;
+    d.className = 'msg ' + item.kind + (item.kind === 'user' && item.system ? ' system' : '');
     if (item.kind === 'assistant' && item.streaming) d.dataset.streaming = 'true';
     const role = document.createElement('span');
     role.className = 'role';
-    role.textContent = item.kind === 'user' ? 'You' : 'Assistant';
+    role.textContent = item.kind === 'user' ? (item.system ? 'system' : 'You') : 'Assistant';
     if (item.kind === 'user' && item.source) {
       const s = document.createElement('span');
       s.className = 'source'; s.textContent = 'via ' + item.source;
@@ -356,6 +401,8 @@ export class HarnessWebviewViewProvider implements vscode.WebviewViewProvider {
   $('send').addEventListener('click', () => sendPrompt());
   $('stop').addEventListener('click', () => post({ type: 'stop' }));
   $('open-web-link').addEventListener('click', () => post({ type: 'openWebUI' }));
+  $('toggle-sys').addEventListener('click', () => post({ type: 'toggleSystemMessages' }));
+  $('move-right').addEventListener('click', () => post({ type: 'moveToSecondarySideBar' }));
   $('input').addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey) {
       e.preventDefault(); sendPrompt();

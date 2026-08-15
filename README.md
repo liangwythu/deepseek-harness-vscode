@@ -82,12 +82,14 @@ and never responds on your behalf.
 | --- | --- | --- |
 | `deepseekHarness.host` | `127.0.0.1` | **v0.0.1 only allows `127.0.0.1` or `localhost`.** Any other value is refused. |
 | `deepseekHarness.port` | `3080` | The default `dsh web` port. Override if you started `dsh web --port <n>`. |
+| `deepseekHarness.showSystemMessages` | `false` | Show plugin-injected system messages (runtime context, approval notices). Hidden by default; toggle live with the `SYS` button in the webview header. |
 
 ## Commands
 
 - `DeepSeek Harness: Connect` / `Disconnect`
 - `DeepSeek Harness: New Session` (in the active workspace)
 - `DeepSeek Harness: Refresh Sessions`
+- `DeepSeek Harness: Move to Right Side Bar` — dock the view in the secondary side bar (like Chat) so it stops competing with the file explorer. Also available via the ⇲ button in the webview header.
 - `DeepSeek Harness: Open Web UI`
 - `DeepSeek Harness: Show Logs` (the `DeepSeek Harness` output channel)
 
