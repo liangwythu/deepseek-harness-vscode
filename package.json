@@ -3,7 +3,7 @@
   "displayName": "DeepSeek Harness",
   "description": "Native VS Code client for DeepSeek Harness. Connect to your existing local Harness instance and continue the same workspaces and sessions directly inside VS Code.",
   "version": "0.0.1",
-  "publisher": "deepseek-harness-community",
+  "publisher": "lucasliang",
   "license": "MIT",
   "repository": {
     "type": "git",

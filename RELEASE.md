@@ -102,7 +102,7 @@ code --install-extension deepseek-harness-vscode-<ver>.vsix
 Roll back:
 
 ```bash
-code --uninstall-extension deepseek-harness-community.deepseek-harness-vscode
+code --uninstall-extension lucasliang.deepseek-harness-vscode
 ```
 
 ---
@@ -133,7 +133,7 @@ The Release notes should be the matching `## [<version>]` section from
 
 ## 5. (Optional) Publish to the VS Code Marketplace
 
-Only do this once a publisher ID (`deepseek-harness-community`) and PAT are set
+Only do this once a publisher ID (`lucasliang`) and PAT are set
 up at https://marketplace.visualstudio.com/manage.
 
 ```bash

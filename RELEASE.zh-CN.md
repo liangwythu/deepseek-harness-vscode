@@ -103,7 +103,7 @@ code --install-extension deepseek-harness-vscode-<版本>.vsix
 回滚：
 
 ```bash
-code --uninstall-extension deepseek-harness-community.deepseek-harness-vscode
+code --uninstall-extension lucasliang.deepseek-harness-vscode
 ```
 
 ---
@@ -133,7 +133,7 @@ Release 说明应为 `CHANGELOG.md` 中对应的 `## [<版本>]` 章节。**仅*
 
 ## 5. （可选）发布到 VS Code Marketplace
 
-仅在已设置发布者 ID（`deepseek-harness-community`）和 PAT 后执行，
+仅在已设置发布者 ID（`lucasliang`）和 PAT 后执行，
 详见 https://marketplace.visualstudio.com/manage。
 
 ```bash
