@@ -1,0 +1,8 @@
+{
+  "version": "0.0.1",
+  "cwd": "E:\\deepseek\\deepseek-harness",
+  "provider": "deepseek-official",
+  "model": "deepseek-v4-flash",
+  "attachedSessions": 1,
+  "canOpenPath": true
+}

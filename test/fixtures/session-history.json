@@ -1,0 +1,51 @@
+{
+  "sessionId": "<redacted>",
+  "hasMore": false,
+  "events": [
+    {
+      "event": {
+        "type": "permission/preset",
+        "seq": 0,
+        "time": 1786726728271,
+        "data": {
+          "preset": "<redacted:len=15>"
+        }
+      }
+    },
+    {
+      "event": {
+        "type": "sandbox/mode",
+        "seq": 1,
+        "time": 1786726728274,
+        "data": {
+          "mode": "<redacted:len=15>"
+        }
+      }
+    },
+    {
+      "event": {
+        "type": "approval/policy",
+        "seq": 2,
+        "time": 1786726728274,
+        "data": {
+          "policy": "<redacted>"
+        }
+      }
+    },
+    {
+      "event": {
+        "type": "command/run",
+        "seq": 3,
+        "time": 1786726736054,
+        "data": {
+          "commandId": "<redacted:len=14>",
+          "name": "<redacted>",
+          "args": "<redacted:len=19>",
+          "source": {
+            "kind": "<redacted>"
+          }
+        }
+      }
+    }
+  ]
+}

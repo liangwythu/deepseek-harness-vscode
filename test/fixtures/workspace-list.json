@@ -1,0 +1,15 @@
+{
+  "items": [
+    {
+      "workspaceId": "1cbddd61-3ca3-4674-a96b-f5fedf52453e",
+      "path": "<redacted>",
+      "title": "<redacted:len=14>",
+      "sessionIds": [
+        "session-ececc7fa-24e5-4c7a-8788-cf7147541ec0"
+      ],
+      "createdAt": "2026-08-14T16:58:22.754Z",
+      "updatedAt": "2026-08-14T16:58:48.290Z"
+    }
+  ],
+  "archivedSessionIds": []
+}

@@ -1,0 +1,14 @@
+{
+  "request": {
+    "mode": "queue",
+    "content": [
+      {
+        "type": "text",
+        "text": "<redacted:len=53>"
+      }
+    ]
+  },
+  "response": {
+    "accepted": true
+  }
+}

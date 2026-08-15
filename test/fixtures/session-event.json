@@ -1,0 +1,8 @@
+{
+  "method": "session/subscribed",
+  "payload": {
+    "type": "session/subscribed",
+    "sessionId": "session-ececc7fa-24e5-4c7a-8788-cf7147541ec0",
+    "lastSeq": 184
+  }
+}

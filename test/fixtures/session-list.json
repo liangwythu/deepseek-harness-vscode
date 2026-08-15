@@ -1,0 +1,87 @@
+{
+  "items": [
+    {
+      "sessionId": "session-ececc7fa-24e5-4c7a-8788-cf7147541ec0",
+      "updatedAt": 1786726758065,
+      "running": false,
+      "blank": false,
+      "cwd": "<redacted>",
+      "agentPreset": "standard",
+      "projections": {
+        "asOfSeq": 184,
+        "values": {
+          "sessionStats": {
+            "turns": 1,
+            "steps": 3,
+            "llmMs": 3813,
+            "toolMs": 1002,
+            "ttftMs": 2520,
+            "ttftSteps": 3,
+            "decodeMs": 1293,
+            "decodeTokens": 212
+          },
+          "title": "列出当前工作区文件",
+          "goal": null,
+          "tokenUsage": {
+            "uncachedInputTokens": 8131,
+            "outputTokens": 212,
+            "cacheReadTokens": 16000,
+            "cacheWriteTokens": 0
+          },
+          "contextPressure": {
+            "pressureTokens": 8158,
+            "projectedTokens": 8200,
+            "contextWindow": 1000000
+          },
+          "contextBreakdown": {
+            "systemTokens": 1548,
+            "toolsTokens": 6670,
+            "messageTokens": 340
+          },
+          "subagentTiming": {
+            "settledMs": 0
+          },
+          "subagent": null,
+          "permissions": {
+            "options": [
+              {
+                "value": "read-only",
+                "name": "read-only"
+              },
+              {
+                "value": "workspace-write",
+                "name": "workspace-write"
+              },
+              {
+                "value": "danger-full-access",
+                "name": "danger-full-access"
+              }
+            ],
+            "currentValue": "danger-full-access"
+          },
+          "sessionListMetadata": {
+            "blank": false,
+            "lastPromptAt": 1786726758065
+          },
+          "imageLimits": {
+            "maxImageBytes": 5242880,
+            "maxImagesPerMessage": 20,
+            "maxMessageImageBytes": 104857600,
+            "maxImagePixels": 40000000,
+            "mediaTypes": [
+              "image/png",
+              "image/jpeg",
+              "image/webp",
+              "image/gif"
+            ]
+          },
+          "todos": null,
+          "plan": {
+            "active": false,
+            "pending": false
+          }
+        }
+      }
+    }
+  ]
+}

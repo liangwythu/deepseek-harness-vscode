@@ -1,0 +1,114 @@
+{
+  "name": "deepseek-harness-vscode",
+  "displayName": "DeepSeek Harness",
+  "description": "Native VS Code client for DeepSeek Harness. Connect to your existing local Harness instance and continue the same workspaces and sessions directly inside VS Code.",
+  "version": "0.0.1",
+  "publisher": "deepseek-harness-community",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/deepseek-harness-community/deepseek-harness-vscode"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "deepseek",
+    "harness",
+    "agent",
+    "ai"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "deepseek-harness",
+          "title": "DeepSeek Harness",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "deepseek-harness": [
+        {
+          "type": "webview",
+          "id": "deepseekHarness.sessionView",
+          "name": "Session",
+          "visibility": "visible"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "deepseekHarness.connect",
+        "title": "DeepSeek Harness: Connect",
+        "category": "DeepSeek Harness"
+      },
+      {
+        "command": "deepseekHarness.disconnect",
+        "title": "DeepSeek Harness: Disconnect",
+        "category": "DeepSeek Harness"
+      },
+      {
+        "command": "deepseekHarness.openWebUI",
+        "title": "DeepSeek Harness: Open Web UI",
+        "category": "DeepSeek Harness"
+      },
+      {
+        "command": "deepseekHarness.showLogs",
+        "title": "DeepSeek Harness: Show Logs",
+        "category": "DeepSeek Harness"
+      },
+      {
+        "command": "deepseekHarness.newSession",
+        "title": "DeepSeek Harness: New Session",
+        "category": "DeepSeek Harness"
+      },
+      {
+        "command": "deepseekHarness.refreshSessions",
+        "title": "DeepSeek Harness: Refresh Sessions",
+        "category": "DeepSeek Harness"
+      }
+    ],
+    "configuration": {
+      "title": "DeepSeek Harness",
+      "properties": {
+        "deepseekHarness.host": {
+          "type": "string",
+          "default": "127.0.0.1",
+          "markdownDescription": "DeepSeek Harness host. **v0.0.1 only allows `127.0.0.1` or `localhost`.** Any other value is refused."
+        },
+        "deepseekHarness.port": {
+          "type": "number",
+          "default": 3080,
+          "markdownDescription": "Port of the local `dsh web` instance. The default `dsh web` port is `3080`."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "node esbuild.mjs --production",
+    "watch": "node esbuild.mjs --watch",
+    "spike": "tsx scripts/protocol-spike.ts",
+    "integration-test": "tsx scripts/integration-test.ts",
+    "package": "vsce package --no-dependencies",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.2.0",
+    "esbuild": "^0.24.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.4.0"
+  },
+  "allowScripts": {}
+}
