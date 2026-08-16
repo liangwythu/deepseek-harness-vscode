@@ -1,9 +1,9 @@
-# DeepSeek Harness Connector for VS Code (v0.0.2)
+# DeepSeek Harness Connector for VS Code (v0.0.3)
 
 [English](./README.md) | [简体中文](./README.zh-CN.md)
 
 [![VS Code Marketplace](https://img.shields.io/badge/VS%20Code-Marketplace-blue.svg)](https://marketplace.visualstudio.com/items?itemName=lucasliang.harness-connector-deepseek)
-[![Version](https://img.shields.io/badge/version-0.0.2-blue.svg)](https://github.com/liangwythu/deepseek-harness-vscode/releases/tag/v0.0.2)
+[![Version](https://img.shields.io/badge/version-0.0.3-blue.svg)](https://github.com/liangwythu/deepseek-harness-vscode/releases/tag/v0.0.3)
 
 > DeepSeek Harness 的原生 VS Code 客户端。
 >
@@ -25,20 +25,23 @@ VS Code ─────┘
 
 VS Code 读取浏览器中已有的工作区和会话，并继续**同一个**会话——所以浏览器刷新该会话时能看到 VS Code 发送的内容。
 
-## v0.0.2 新特性
+## v0.0.3 新特性
 
-**对话 UX & 架构基线版** —— 进入 PR-only 模式前的最后一次直推版本。
+**Diff 审查、审批工作流 & 文件内容内联** —— 补齐与 Cursor/Cline 最大的体验差距：代码变更可以在 VS Code 内完成审查和审批，无需切换到 Web UI。
 
-- **Assistant Markdown 渲染** —— `markdown-it`（`html: false`）在 webview 侧运行。代码块、列表、表格、链接均可渲染。不安全 HTML 被丢弃；链接以 `target=_blank rel=noopener` 打开。
-- **Tool 卡片合并** —— `tool/call` + `tool/result` 以 `callId` 合并为单个可折叠的 `ToolItem`。不再有粉色整块 result。点击展开 Arguments + Result。
-- **System 消息折叠** —— `SystemItem` 是独立类型（不再是带标记的 `UserItem`）。默认 UI 为一行折叠 `▸ Runtime context · @deepseek-ai/dsh-system-prompt`。
-- **惰性创建 workspace + session** —— 打开 repo，输入提示，按 Send。workspace 和 session 在首次发送时自动创建。无确认弹窗。
-- **流式渲染修复** —— `renderVersion` 单调递增计数器确保每次模型变更都触发 webview 重渲染。修复了"流式文本变了但 UI 不更新"的 bug。
-- **架构加固** —— `AppController` 接管编排；`extension.ts` 纯接线；`provider.ts` 拆分为 `styles/html/client/toolPresentation`。为后续 feature PR 提供稳定边界。
+- **Diff 审查与内联代码应用** —— Agent 写入或编辑文件时，侧边栏自动出现审查卡片，展示每个变更文件的 `+新增`/`-删除` 行数。点击 **Diff** 打开 VS Code 原生 diff 编辑器。支持逐文件 Accept（保留）/ Reject（通过 `git checkout` 安全回退），也可批量操作。
+- **审批工作流集成** —— `approval/requested` 事件现在以内联卡片形式展示，带 **Allow once** / **Deny** 按钮。不再需要切浏览器审批。安全允许列表限制哪些工具可以在 VS Code 内审批，高风险操作仍需 Web UI。
+- **@file 内容内联** —— 文件引用（`@file:path` 或 `@file:path:L10-L20`）的内容现在被直接读取并内联到用户消息中，确保 agent 始终能看到文件内容。`context` 元数据（活动文件、选区）仅在会话首次发送时附带。
+- **右键菜单集成** —— 在资源管理器中右键文件 → **Add to Harness Chat**。在编辑器中选中文本 → 右键 → **Send Selection to Harness**。均使用工作区相对路径。
 
 详见 [CHANGELOG.zh-CN.md](./CHANGELOG.zh-CN.md)。
 
-## v0.0.2 做什么
+### 历史版本
+
+- **v0.0.2** —— 对话 UX & 架构基线版：Assistant Markdown 渲染、Tool 卡片合并、System 消息折叠、惰性创建 workspace/session、流式渲染修复、架构加固。
+- **v0.0.1** —— 首个公开版本：验证 VS Code 与浏览器共享同一个 Harness 会话。
+
+## v0.0.3 做什么
 
 - 连接到**本地** `dsh web`（仅限回环地址——`127.0.0.1` / `localhost`）。
 - 将当前 VS Code 文件夹匹配到 Harness 工作区。若无匹配，工作区在**首次发送时惰性创建**——无弹窗。
@@ -47,29 +50,26 @@ VS Code 读取浏览器中已有的工作区和会话，并继续**同一个**�
 - 向该会话发送纯文本提示。若无会话，自动创建。
 - 实时流式传输助手回复，支持 **Markdown 渲染**（代码块、列表、表格、链接）。
 - 将工具调用显示为**折叠卡片**，带语义化标题（`Read src/foo.ts`、`Search "pattern"`、`Run npm test`）。
+- **审查 Agent 代码变更** —— diff 卡片支持逐文件 Accept/Reject，原生 VS Code diff 编辑器，批量 Accept All / Reject All。
+- **审批或拒绝 Agent 操作** —— 内联审批卡片，Allow once / Deny 按钮（安全允许列表强制执行）。
+- **附加文件上下文** —— 在提示中使用 `@file:path` 或 `@file:path:L10-L20`，文件内容自动读取并内联。右键资源管理器或编辑器可快速插入。
 - 默认隐藏插件注入的系统消息；通过 `SYS` 按钮切换。
 - 停止当前回合。
 - 断线时重新打开流并重新获取历史记录。
 - "在 Harness Web UI 中打开"命令。
 - 通过 ⇲ 按钮将视图停靠在右侧边栏（像聊天面板一样）。
 
-## v0.0.2 刻意不做的事
+## v0.0.3 刻意不做的事
 
-为安全起见，v0.0.2 拒绝触碰读取 + 提示 + 取消之外的任何操作：
+为安全起见，以下仍不在范围内：
 
-- 不调用 `/api/respond`，不批准/拒绝审批，不修改权限。
 - 不调用 `commands/execute`，不访问 `credentials` 或 `settings` API。
 - 不切换模型。
-- 不做差异审查、文件编辑、内联补全、终端/LSP 集成。
+- 不做内联补全、终端/LSP 集成。
+- 高风险审批（如带不可信输入的 `bash`）不能在 VS Code 内批准——卡片显示"Review in Web UI"。
 - 不建立第二份会话数据库——Harness Session 是**唯一**的真相源。
 - 不自动安装/启动/升级 `dsh`。
 - 不 fork 或修改 Harness 源码。
-
-如果某个操作需要审批，VS Code 只显示：
-
-> 该操作需要在 DeepSeek Harness Web UI 中审批
-
-绝不代你响应。
 
 ## 环境要求
 
@@ -94,7 +94,7 @@ VS Code 读取浏览器中已有的工作区和会话，并继续**同一个**�
    或从 [GitHub Releases](https://github.com/liangwythu/deepseek-harness-vscode/releases) 安装 VSIX：
 
    ```bash
-   code --install-extension harness-connector-deepseek-0.0.2.vsix
+   code --install-extension harness-connector-deepseek-0.0.3.vsix
    ```
 
 3. 在 VS Code 中打开一个你想绑定到 Harness 工作区的文件夹。
@@ -103,7 +103,9 @@ VS Code 读取浏览器中已有的工作区和会话，并继续**同一个**�
 
 5. **没有匹配的工作区？** 直接输入提示按 Send——工作区和会话会自动创建。
 
-6. 在浏览器中打开 `http://127.0.0.1:3080/` 的同一会话——两端看到的是同一轮对话。
+6. **附加文件上下文** —— 输入 `@file:src/main.ts`，或在资源管理器中右键文件选择 **Add to Harness Chat**。在编辑器中选中文本，右键选择 **Send Selection to Harness** 可插入带行范围的引用。
+
+7. 在浏览器中打开 `http://127.0.0.1:3080/` 的同一会话——两端看到的是同一轮对话。
 
 ## 配置
 
@@ -121,6 +123,11 @@ VS Code 读取浏览器中已有的工作区和会话，并继续**同一个**�
 - `DeepSeek Harness: Move to Right Side Bar`（移至右侧边栏）——将视图停靠在辅助侧边栏（像聊天面板一样），不再与文件浏览器争抢左侧空间。也可通过 webview 头部的 ⇲ 按钮触发。
 - `DeepSeek Harness: Open Web UI`（打开 Web UI）
 - `DeepSeek Harness: Show Logs`（显示日志，即 `DeepSeek Harness` 输出通道）
+
+### 右键菜单操作
+
+- **Add to Harness Chat**（资源管理器右键）—— 将 `@file:<相对路径>` 插入聊天输入框。
+- **Send Selection to Harness**（编辑器右键，需选中文本）—— 将 `@file:<相对路径>:L<起始行>-L<结束行>` 插入聊天输入框。
 
 ## 架构
 
@@ -150,7 +157,7 @@ npm install
 npm run build        # esbuild → dist/extension.js
 npm run watch        # 变更时自动重建
 npm run typecheck
-npm run package      # → harness-connector-deepseek-0.0.2.vsix
+npm run package      # → harness-connector-deepseek-0.0.3.vsix
 ```
 
 在 VS Code 中按 `F5` 启动带有该扩展的扩展开发宿主。
@@ -167,14 +174,15 @@ npm run package      # → harness-connector-deepseek-0.0.2.vsix
 - 历史记录加载最近约 50 条消息；"加载更早"是未来版本的计划。
 - "Open Web UI" 中的会话深链接不做猜测——只打开 Harness 首页。
 - 未知的 harness 事件类型会被忽略（协议是可合并扩展的）；它们不会导致客户端崩溃，但也不会渲染。
+- Diff 审查的 Reject 使用 `git checkout` 回退——目标文件上未提交的本地修改会在 Reject 时丢失。
 
-## 路线图（v0.0.3+，通过 feature PR）
+## 路线图（v0.0.4+）
 
-- 差异审查（Diff Review）
-- 审批集成（Approval integration）
 - 内联补全（Inline Completion）
 - VS Code 文件系统提供器
-- 上下文注入（Context injection）
+- 终端集成
+- LSP / ACP 集成
+- 图片附件
 
 ## 许可证
 

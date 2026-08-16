@@ -1,7 +1,7 @@
 # 发布流程
 
 本文档描述如何裁剪并发布 **DeepSeek Harness Connector for VS Code** 的一个版本。
-v0.0.2 以 GitHub Release + VSIX 资产 + Marketplace 上传的形式发布；Marketplace 发布是可选的，见末尾说明。
+v0.0.3 以 GitHub Release + VSIX 资产 + Marketplace 上传的形式发布；Marketplace 发布是可选的，见末尾说明。
 
 ---
 
@@ -183,5 +183,5 @@ gh release edit v<版本> --draft
 
 ## 附录 — 版本策略
 
-- `0.0.x`——v0.0.x 线是"最小闭环"线。补丁版本仅修复协议漂移、构建或安全问题。不新增功能。
-- `0.1.0` 及以后——见 `README.md` 的"v0.0.2 TODO"（差异审查、审批集成、内联补全、VS Code 文件系统提供器）。
+- `0.0.x`——v0.0.x 线是"最小闭环"线。v0.0.3 引入了 Diff 审查、审批工作流和文件内容内联。
+- `0.1.0` 及以后——见 `README.md` 的路线图（内联补全、VS Code 文件系统提供器、终端集成、LSP/ACP 集成）。
