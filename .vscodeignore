@@ -14,3 +14,5 @@ tsconfig.json
 RELEASE.md
 media/origin.png
 .trae/**
+pr_body.md
+readmefor_human.md

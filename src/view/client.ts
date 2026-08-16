@@ -17,6 +17,8 @@ export const CLIENT_SCRIPT = /* js */ `
   const vscode = acquireVsCodeApi();
   const $ = (id) => document.getElementById(id);
   let lastRenderVersion = -1;
+  let currentReviews = [];
+  let currentApprovals = [];
 
   // ─── markdown renderer (webview-only, html disabled!) ──────────────────────
   const md = new MarkdownIt({ html: false, linkify: true, breaks: false });
@@ -60,6 +62,10 @@ export const CLIENT_SCRIPT = /* js */ `
 
   // ─── main render entry point ────────────────────────────────────────────────
   function render(state) {
+    // Store reviews/approvals for lookup in renderTool
+    currentReviews = state.reviews || [];
+    currentApprovals = state.approvals || [];
+
     // Brand bar
     const icon = $('brand-icon');
     if (state.brandIconUri) { icon.src = state.brandIconUri; icon.style.display = ''; }
@@ -222,6 +228,22 @@ export const CLIENT_SCRIPT = /* js */ `
     head.addEventListener('click', () => d.classList.toggle('open'));
     d.appendChild(head);
 
+    // Approval card (if pending approval linked to this tool)
+    if (item.approvalRpcId) {
+      const ap = currentApprovals.find(a => a.rpcId === item.approvalRpcId);
+      if (ap && ap.state !== 'resolved') {
+        d.appendChild(renderApprovalCard(ap));
+      }
+    }
+
+    // Review card (if review linked to this tool)
+    if (item.reviewId) {
+      const rv = currentReviews.find(r => r.id === item.reviewId);
+      if (rv && rv.state === 'pending') {
+        d.appendChild(renderReviewCard(rv));
+      }
+    }
+
     const body = document.createElement('div');
     body.className = 't-body';
 
@@ -242,6 +264,159 @@ export const CLIENT_SCRIPT = /* js */ `
     }
     d.appendChild(body);
     return d;
+  }
+
+  // ─── approval card ──────────────────────────────────────────────────────
+  function renderApprovalCard(ap) {
+    const card = document.createElement('div');
+    card.className = 't-approval ' + ap.state;
+    const label = document.createElement('div');
+    label.className = 'approval-label';
+    label.textContent = '⚠ Approval required';
+    card.appendChild(label);
+    if (ap.toolName) {
+      const tool = document.createElement('div');
+      tool.className = 'approval-tool';
+      tool.textContent = 'Tool: ' + escapeText(ap.toolName);
+      card.appendChild(tool);
+    }
+    if (ap.reason) {
+      const reason = document.createElement('div');
+      reason.className = 'approval-reason';
+      reason.textContent = 'Reason: ' + escapeText(ap.reason);
+      card.appendChild(reason);
+    }
+    const actions = document.createElement('div');
+    actions.className = 'approval-actions';
+    const denyBtn = document.createElement('button');
+    denyBtn.className = 'secondary';
+    denyBtn.textContent = 'Deny';
+    denyBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      post({ type: 'approvalRespond', rpcId: ap.rpcId, outcome: 'rejected' });
+    });
+    actions.appendChild(denyBtn);
+    if (ap.canAllow) {
+      const allowBtn = document.createElement('button');
+      allowBtn.textContent = 'Allow once';
+      allowBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        post({ type: 'approvalRespond', rpcId: ap.rpcId, outcome: 'allowed-once' });
+      });
+      actions.appendChild(allowBtn);
+    } else {
+      const note = document.createElement('span');
+      note.className = 'approval-webonly';
+      note.textContent = 'Review in Web UI';
+      actions.appendChild(note);
+    }
+    if (ap.state === 'responding') {
+      const note = document.createElement('span');
+      note.className = 'approval-responding';
+      note.textContent = 'Sending…';
+      actions.appendChild(note);
+    }
+    card.appendChild(actions);
+    return card;
+  }
+
+  // ─── review card ─────────────────────────────────────────────────────────
+  function renderReviewCard(rv) {
+    const card = document.createElement('div');
+    card.className = 't-review ' + rv.state;
+    const header = document.createElement('div');
+    header.className = 'review-header';
+    const title = document.createElement('span');
+    title.className = 'review-title';
+    title.textContent = 'Changed Files';
+    const stateBadge = document.createElement('span');
+    stateBadge.className = 'review-state ' + rv.state;
+    stateBadge.textContent = rv.state;
+    header.appendChild(title);
+    header.appendChild(stateBadge);
+    card.appendChild(header);
+
+    const filesDiv = document.createElement('div');
+    filesDiv.className = 'review-files';
+    for (const f of rv.files) {
+      const fileRow = document.createElement('div');
+      fileRow.className = 'review-file ' + f.state;
+
+      const path = document.createElement('span');
+      path.className = 'rf-path';
+      path.textContent = shortPath(f.path);
+      path.title = f.path;
+
+      const stats = document.createElement('span');
+      stats.className = 'rf-stats';
+      stats.innerHTML = '<span class="added">+' + f.addedLines + '</span> <span class="removed">-' + f.removedLines + '</span>';
+
+      const openBtn = document.createElement('button');
+      openBtn.className = 'secondary icon';
+      openBtn.textContent = 'Diff';
+      openBtn.title = 'Open diff editor';
+      openBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        post({ type: 'reviewOpenDiff', reviewId: rv.id, filePath: f.path });
+      });
+
+      fileRow.appendChild(path);
+      fileRow.appendChild(stats);
+      fileRow.appendChild(openBtn);
+
+      // Per-file accept/reject buttons
+      if (f.state === 'pending') {
+        const rejectBtn = document.createElement('button');
+        rejectBtn.className = 'secondary icon';
+        rejectBtn.textContent = '✕';
+        rejectBtn.title = 'Reject (revert changes)';
+        rejectBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          post({ type: 'reviewRejectFile', reviewId: rv.id, filePath: f.path });
+        });
+        const acceptBtn = document.createElement('button');
+        acceptBtn.className = 'icon';
+        acceptBtn.textContent = '✓';
+        acceptBtn.title = 'Accept (keep changes)';
+        acceptBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          post({ type: 'reviewAcceptFile', reviewId: rv.id, filePath: f.path });
+        });
+        fileRow.appendChild(rejectBtn);
+        fileRow.appendChild(acceptBtn);
+      } else {
+        const stateLabel = document.createElement('span');
+        stateLabel.className = 'rf-state ' + f.state;
+        stateLabel.textContent = f.state === 'accepted' ? '✓ kept' : f.state === 'rejected' ? '✕ reverted' : f.state;
+        fileRow.appendChild(stateLabel);
+      }
+
+      filesDiv.appendChild(fileRow);
+    }
+    card.appendChild(filesDiv);
+
+    // Accept all / Reject all buttons
+    if (rv.state === 'pending') {
+      const actions = document.createElement('div');
+      actions.className = 'review-actions';
+      const rejectAllBtn = document.createElement('button');
+      rejectAllBtn.className = 'secondary';
+      rejectAllBtn.textContent = 'Reject All';
+      rejectAllBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        post({ type: 'reviewRejectAll', reviewId: rv.id });
+      });
+      const acceptAllBtn = document.createElement('button');
+      acceptAllBtn.textContent = 'Accept All';
+      acceptAllBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        post({ type: 'reviewAcceptAll', reviewId: rv.id });
+      });
+      actions.appendChild(rejectAllBtn);
+      actions.appendChild(acceptAllBtn);
+      card.appendChild(actions);
+    }
+    return card;
   }
 
   // Mirror of presentTool from view/toolPresentation.ts — keeps the two
@@ -314,7 +489,10 @@ export const CLIENT_SCRIPT = /* js */ `
   }
 
   // ─── @file parsing (webview-side preview only; authoritative parse is in extension host) ──
-  const AT_FILE_RE = /@file:([^\s:]+(?::\\?[^\s:]*)*)(?::L(\d+)(?:-L(\d+))?)?/g;
+  // NOTE: This code lives inside a template literal. Backslash sequences like \\s must be
+  // doubled (\\\\s) so the output JS receives \s, not s. Without doubling, \s→s and \d→d,
+  // breaking the regex entirely ([^\s:] becomes [^s:] which does NOT exclude whitespace).
+  const AT_FILE_RE = /@file:([^\\s:]+(?::(?!L\\d)\\\\?[^\\s:]*)*)(?::L(\\d+)(?:-L(\\d+))?)?/g;
   function parseAtFilePreview(text) {
     const files = [];
     let m;
@@ -388,18 +566,14 @@ export const CLIENT_SCRIPT = /* js */ `
   // Update context preview as user types @file references
   $('input').addEventListener('input', () => updateContextPreview());
 
-  // Send prompt: parse @file refs, pass context to extension host.
-  // The extension host will further enrich context with editor state.
+  // Send prompt: the extension host does authoritative @file parsing and
+  // inlines file content into the user message. No need to send context here.
   function sendPrompt() {
     const ta = $('input');
     const text = ta.value.trim();
     if (!text) return;
     ta.value = '';
-    // Parse @file refs for preview (extension host does authoritative parse)
-    const atFiles = parseAtFilePreview(text);
-    const context = atFiles.length > 0 ? { files: atFiles } : undefined;
-    post({ type: 'sendPrompt', text, context });
-    // Reset context preview
+    post({ type: 'sendPrompt', text });
     updateContextPreview();
   }
 

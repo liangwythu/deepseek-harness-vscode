@@ -23,7 +23,7 @@ import { CompositeDisposable } from '../disposable.ts'
 import { EventBuffer, MuxStream, type MuxStatus } from './events.ts'
 import type {
   ClientRequest, HistoryEntry, HostDescribe, MuxFrame, PromptContentPart,
-  PromptContext, RpcError, ServerResponse, SessionId, SessionSummary,
+  PromptContext, RpcError, RpcId, ServerResponse, SessionId, SessionSummary,
   WorkspaceId, WorkspaceView,
 } from './protocol.ts'
 
@@ -45,6 +45,9 @@ export type ConnectionState =
 /** Listener for the active session's event stream (already filtered by sessionId). */
 export type SessionEventListener = (frame: MuxFrame) => void
 
+/** Listener for approval frames — receives the envelope rpcId for correlation. */
+export type ApprovalFrameListener = (frame: MuxFrame, rpcId: RpcId) => void
+
 export interface HarnessClientOptions {
   host: string
   port: number
@@ -61,6 +64,7 @@ export class HarnessClient implements Disposable {
   /** Active session filter; only frames for this session reach `sessionListeners`. */
   private activeSessionId: SessionId | undefined
   private readonly sessionListeners = new Set<SessionEventListener>()
+  private readonly approvalListeners = new Set<ApprovalFrameListener>()
   private readonly stateListeners = new Set<(s: ConnectionState) => void>()
   private readonly muxStatusListeners = new Set<(s: MuxStatus) => void>()
   private buffer: EventBuffer | undefined
@@ -76,6 +80,12 @@ export class HarnessClient implements Disposable {
   onMuxStatusChange(listener: (s: MuxStatus) => void): Disposable {
     this.muxStatusListeners.add(listener)
     return { dispose: () => { this.muxStatusListeners.delete(listener) } }
+  }
+  /** Register a listener for approval frames (approval/requested, approval/resolved).
+   *  The listener receives the envelope rpcId for correlation with /api/respond. */
+  onApprovalFrame(listener: ApprovalFrameListener): Disposable {
+    this.approvalListeners.add(listener)
+    return { dispose: () => { this.approvalListeners.delete(listener) } }
   }
   private setState(s: ConnectionState): void {
     this.state = s
@@ -162,6 +172,21 @@ export class HarnessClient implements Disposable {
     return this.rpc('session.cancel', { sessionId })
   }
 
+  /** Respond to an approval request (POST /api/respond).
+   *  The UI must never call fetch directly — this is the only path. */
+  respondApproval(rpcId: RpcId, response: {
+    sessionId: SessionId
+    approvalId: string
+    outcome: 'allowed-once' | 'rejected'
+  }): Promise<void> {
+    return this.rpc('respond', {
+      rpcId,
+      sessionId: response.sessionId,
+      approvalId: response.approvalId,
+      outcome: response.outcome,
+    })
+  }
+
   // ─── event subscription ─────────────────────────────────────────────────────
   /**
    * Subscribe to frames for `sessionId`. Frames for other sessions are dropped.
@@ -230,8 +255,15 @@ export class HarnessClient implements Disposable {
     const url = `ws://${this.opts.host}:${this.opts.port}/api/events.mux`
     this.mux = new MuxStream({
       url,
-      onFrame: (frame) => {
-        // Notify every listener; the active-session filter lives in subscribe().
+      onFrame: (frame, envelope) => {
+        // Route approval frames to dedicated listeners (with rpcId for correlation)
+        const ft = (frame as { type?: string }).type
+        if (ft === 'approval/requested' || ft === 'approval/resolved') {
+          for (const l of this.approvalListeners) {
+            try { l(frame, envelope.rpcId) } catch { /* listener errors must not break the stream */ }
+          }
+        }
+        // Notify every session listener; the active-session filter lives in subscribe().
         for (const l of this.sessionListeners) {
           try { l(frame) } catch { /* listener errors must not break the stream */ }
         }

@@ -43,7 +43,13 @@ export interface ToolItem {
   name: string
   arguments: string
   result?: { text: string; isError: boolean }
+  /** Raw tool/result.meta — authoritative diff data source (goal.md §4). */
+  resultMeta?: unknown
   state: 'running' | 'completed' | 'error'
+  /** Review transaction id if a review was created for this tool (write/edit). */
+  reviewId?: string
+  /** Pending approval rpcId if approval/requested was received for this tool. */
+  approvalRpcId?: string
 }
 
 export interface StatusItem {

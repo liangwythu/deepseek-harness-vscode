@@ -24,8 +24,10 @@ import type {
 } from '../harness/protocol.ts'
 
 /** Regex matching @file:path, @file:path:L10, @file:path:L10-L20.
- *  Path may contain any chars except whitespace; line ranges use L<digits>. */
-const AT_FILE_RE = /@file:([^\s:]+(?::\\?[^\s:]*)*)(?::L(\d+)(?:-L(\d+))?)?/g
+ *  Path may contain any chars except whitespace; line ranges use L<digits>.
+ *  The negative lookahead (?!L\d) prevents :L<digits> from being consumed
+ *  as part of the path (critical for Windows paths like e:\folder\file.ts:L10). */
+const AT_FILE_RE = /@file:([^\s:]+(?::(?!L\d)\\?[^\s:]*)*)(?::L(\d+)(?:-L(\d+))?)?/g
 
 /**
  * Extract @file references from prompt text. Returns the cleaned text
@@ -58,6 +60,8 @@ export function parseAtFileReferences(text: string): {
 export function collectEditorContext(vscodeWindow: typeof vscode.window): PromptContext | undefined {
   const editor = vscodeWindow.activeTextEditor
   if (!editor) return undefined
+  // Skip non-file documents (Output panel, Settings, etc.) — their URIs are not file paths
+  if (editor.document.uri.scheme !== 'file') return undefined
 
   const ctx: PromptContext = {}
 

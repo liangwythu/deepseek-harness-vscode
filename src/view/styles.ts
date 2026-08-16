@@ -157,4 +157,51 @@ textarea { resize: none; min-height: 60px; max-height: 200px; width: 100%; }
 .ctx-chip.selection { background: var(--vscode-charts-yellow, #ca9c2e); color: var(--vscode-contrastActiveBorder, #000); }
 .ctx-chips { display: flex; flex-wrap: wrap; gap: 4px; }
 .atfile-hint { font-size: 10px; color: var(--vscode-descriptionForeground); opacity: 0.7; padding: 2px 0; }
+
+/* Approval card (embedded in tool item, always visible) */
+.t-approval {
+  margin: 4px 0; padding: 6px 8px; border-radius: 4px;
+  background: var(--vscode-inputWarningBackground, rgba(202,156,46,.12));
+  border: 1px solid var(--vscode-inputValidation-warningBorder, #ca9c2e);
+  font-size: 12px;
+}
+.t-approval.responding { opacity: 0.7; }
+.t-approval .approval-label { font-weight: 600; color: var(--vscode-charts-yellow, #ca9c2e); }
+.t-approval .approval-tool { margin-top: 2px; font-family: var(--vscode-editor-font-family, monospace); font-size: 11px; }
+.t-approval .approval-reason { margin-top: 2px; color: var(--vscode-descriptionForeground); font-size: 11px; }
+.t-approval .approval-actions { display: flex; gap: 6px; margin-top: 6px; align-items: center; }
+.t-approval .approval-actions button { padding: 2px 10px; font-size: 11px; }
+.t-approval .approval-webonly { font-size: 10px; color: var(--vscode-descriptionForeground); font-style: italic; }
+.t-approval .approval-responding { font-size: 10px; color: var(--vscode-descriptionForeground); }
+
+/* Review card (embedded in tool item, always visible) */
+.t-review {
+  margin: 4px 0; padding: 6px 8px; border-radius: 4px;
+  background: var(--vscode-textBlockQuote-background);
+  border: 1px solid var(--vscode-panel-border, rgba(128,128,128,.25));
+  font-size: 12px;
+}
+.t-review .review-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.t-review .review-title { font-weight: 600; font-size: 11px; text-transform: uppercase; color: var(--vscode-descriptionForeground); }
+.t-review .review-state { font-size: 10px; padding: 1px 6px; border-radius: 8px; }
+.t-review .review-state.pending { background: var(--vscode-badge-background); color: var(--vscode-badge-foreground); }
+.t-review .review-state.accepted { background: var(--vscode-charts-green, #2da44e); color: #fff; }
+.t-review .review-state.rejected { background: var(--vscode-charts-red, #c53149); color: #fff; }
+.t-review .review-state.partial { background: var(--vscode-charts-yellow, #ca9c2e); color: #000; }
+.t-review .review-state.conflicted { background: var(--vscode-errorForeground, #c53149); color: #fff; }
+.t-review .review-files { display: flex; flex-direction: column; gap: 2px; }
+.t-review .review-file {
+  display: flex; align-items: center; gap: 6px; padding: 3px 4px; border-radius: 3px;
+  background: var(--vscode-editor-background);
+}
+.t-review .rf-path { flex: 1; font-family: var(--vscode-editor-font-family, monospace); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.t-review .rf-stats { font-size: 10px; font-family: var(--vscode-editor-font-family, monospace); flex: 0 0 auto; }
+.t-review .rf-stats .added { color: var(--vscode-charts-green, #2da44e); }
+.t-review .rf-stats .removed { color: var(--vscode-charts-red, #c53149); }
+.t-review .rf-state { font-size: 10px; flex: 0 0 auto; }
+.t-review .rf-state.accepted { color: var(--vscode-charts-green, #2da44e); }
+.t-review .rf-state.rejected { color: var(--vscode-charts-red, #c53149); }
+.t-review .review-file button { padding: 2px 6px; font-size: 10px; flex: 0 0 auto; }
+.t-review .review-actions { display: flex; gap: 6px; margin-top: 6px; }
+.t-review .review-actions button { flex: 1; padding: 3px 10px; font-size: 11px; }
 `

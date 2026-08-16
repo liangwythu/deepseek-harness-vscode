@@ -14,7 +14,7 @@
  */
 
 import type {
-  AssistantChunkData, AssistantMessageData, ContentBlock, SessionEvent,
+  AssistantChunkData, AssistantMessageData, CallId, ContentBlock, SessionEvent,
   SessionId, SessionSummary, ToolCallData, ToolResultData, TurnEndData,
   UserMessageData,
 } from '../harness/protocol.ts'
@@ -68,6 +68,16 @@ export function prettyToolArgs(raw: string): string {
   try { return JSON.stringify(JSON.parse(raw), null, 2) } catch { return raw }
 }
 
+/** Callback fired when a tool call+result pair completes. Returns callId + raw data. */
+export interface ToolCompletedHandler {
+  (info: {
+    callId: CallId
+    toolName: string
+    arguments: string
+    resultMeta?: unknown
+  }): void
+}
+
 export class ConversationModel {
   private items: ConversationItem[] = []
   private running = false
@@ -81,13 +91,44 @@ export class ConversationModel {
   private streaming = new Map<string, { text: string; reasoning: string }>()
   /** Index of currently streaming assistant item (-1 if none). */
   private streamingAssistantIdx = -1
+  /** Callback fired when tool call+result pair completes. */
+  private toolCompletedHandler: ToolCompletedHandler | undefined
 
   constructor(private readonly sessionId: SessionId) {}
+
+  setToolCompletedHandler(h: ToolCompletedHandler | undefined): void {
+    this.toolCompletedHandler = h
+  }
+
+  /** Attach a review id to a ToolItem (called by ReviewController after creating review). */
+  setReviewId(callId: CallId, reviewId: string | undefined): void {
+    const idx = this.toolIndexByCallId.get(callId)
+    if (idx == null) return
+    const item = this.items[idx]
+    if (item?.kind === 'tool') {
+      item.reviewId = reviewId
+      this.bump()
+    }
+  }
+
+  /** Attach an approval rpcId to a ToolItem (called by AppController on approval/requested). */
+  setApprovalRpcId(callId: CallId, rpcId: string | undefined): void {
+    const idx = this.toolIndexByCallId.get(callId)
+    if (idx == null) return
+    const item = this.items[idx]
+    if (item?.kind === 'tool') {
+      item.approvalRpcId = rpcId
+      this.bump()
+    }
+  }
 
   setShowSystemMessages(show: boolean): void {
     if (show !== this.showSystemMessages) this.renderVersion++
     this.showSystemMessages = show
   }
+
+  /** Bump renderVersion so the webview re-renders items (used when review/approval state changes). */
+  touch(): void { this.bump() }
 
   loadHistory(events: SessionEvent[]): void {
     this.items = []
@@ -135,7 +176,14 @@ export class ConversationModel {
       sessionId: this.sessionId,
       title: this.title,
       running: this.running,
-      items: items.map(i => ({ ...i })),
+      items: items.map(i => {
+        if (i.kind === 'tool') {
+          // Strip resultMeta — large blob, not needed by webview
+          const { resultMeta, ...rest } = i
+          return rest
+        }
+        return { ...i }
+      }),
       renderVersion: this.renderVersion,
       systemMessageCount,
     }
@@ -274,8 +322,18 @@ export class ConversationModel {
       if (idx != null && this.items[idx]?.kind === 'tool') {
         const t = this.items[idx] as Extract<ConversationItem, { kind: 'tool' }>
         t.result = { text, isError }
+        t.resultMeta = d.meta
         t.state = isError ? 'error' : 'completed'
         this.bump()
+        // Notify handler so ReviewController can create a review transaction
+        if (!isError) {
+          this.toolCompletedHandler?.({
+            callId,
+            toolName: t.name,
+            arguments: t.arguments,
+            resultMeta: d.meta,
+          })
+        }
         return
       }
     }

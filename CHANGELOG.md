@@ -5,6 +5,59 @@ All notable changes to this project are documented in this file.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.0.3] — 2026-08-16
+
+Tagline: **Diff Review, Approval Workflow & File Context Inlining.**
+
+Closes the biggest experience gap with Cursor/Cline: code changes can now be
+reviewed and approved entirely inside VS Code, without switching to the Web UI.
+
+### New features
+
+- **Diff Review & Inline Code Application.** When the agent writes or edits
+  files, a review card appears in the sidebar showing each changed file with
+  `+added`/`-removed` line counts. Click **Diff** to open VS Code's native
+  diff editor (via `dsh-review://` virtual documents). Accept (keep changes)
+  or Reject (safe revert via `git checkout`) per-file or all at once. Review
+  transactions are tracked by `callId` and linked to the originating tool call.
+- **Approval Workflow Integration.** `approval/requested` events now render
+  inline as cards with **Allow once** / **Deny** buttons — no more switching to
+  the browser. A security allowlist restricts which tools can be approved from
+  VS Code; high-risk operations still require the Web UI. Responses are sent
+  via `POST /api/respond`.
+- **@file Content Inlining.** File references (`@file:path` or
+  `@file:path:L10-L20`) now have their content read and inlined directly into
+  the user message text (wrapped in `<file path="…">` tags), guaranteeing the
+  agent can see file content even when the backend doesn't process the
+  `context` field. The `context` metadata (active file, selection) is only
+  attached on the **first prompt** of a session to avoid redundant sends.
+- **Context Menu Integration.** Right-click a file in the explorer →
+  **Add to Harness Chat** inserts an `@file:` reference. Select text in the
+  editor → right-click → **Send Selection to Harness** inserts
+  `@file:path:L10-L20`. Both use workspace-relative paths for readability.
+
+### Bug fixes
+
+- **@file regex on Windows.** Added negative lookahead `(?!L\d)` to prevent
+  `:L<digits>` line ranges from being consumed as part of the file path
+  (critical for Windows paths like `e:\folder\file.ts:L10`).
+- **Webview regex escaping.** Template literal double-escaping for `\s`/`\d`
+  in the webview's `parseAtFilePreview` — without it, `[^\s:]` became
+  `[^s:]` which does not exclude whitespace.
+- **Skip non-file documents.** `collectEditorContext` now skips documents
+  whose URI scheme is not `file` (Output panel, Settings, etc.).
+- **Input clearing on @file-only input.** When the input contains only
+  `@file:` references, the chat now shows a readable summary like
+  `(See: file.ts:L10-L20)` instead of being cleared.
+
+### New modules
+
+- `src/review/` — `ReviewController`, `ReviewStore`, `ReviewVirtualDocumentProvider`,
+  `ReviewMaterializer` (6 files, ~500 lines)
+- `src/approval/` — `ApprovalStore`, types (2 files, ~150 lines)
+
+---
+
 ## [0.0.2] — 2026-08-15
 
 Tagline: **Conversation UX & Architecture Baseline.**

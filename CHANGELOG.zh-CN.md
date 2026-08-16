@@ -5,6 +5,33 @@
 格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.0.3] — 2026-08-16
+
+版本定位：**Diff 审查、审批工作流 & 文件内容内联。**
+
+补齐与 Cursor/Cline 最大的体验差距：代码变更可以在 VS Code 内完成审查和审批，无需切换到 Web UI。
+
+### 新功能
+
+- **Diff 审查与内联代码应用。** Agent 写入或编辑文件时，侧边栏自动出现审查卡片，展示每个变更文件的 `+新增`/`-删除` 行数。点击 **Diff** 打开 VS Code 原生 diff 编辑器（通过 `dsh-review://` 虚拟文档）。支持逐文件 Accept（保留）/ Reject（通过 `git checkout` 安全回退），也可批量操作。审查事务以 `callId` 关联到原始工具调用。
+- **审批工作流集成。** `approval/requested` 事件现在以内联卡片形式展示，带 **Allow once** / **Deny** 按钮 — 不再需要切浏览器审批。安全允许列表限制哪些工具可以在 VS Code 内审批，高风险操作仍需 Web UI。响应通过 `POST /api/respond` 发送。
+- **@file 内容内联。** 文件引用（`@file:path` 或 `@file:path:L10-L20`）的内容现在被直接读取并内联到用户消息文本中（用 `<file path="…">` 标签包裹），确保 agent 始终能看到文件内容，即使后端不处理 `context` 字段。`context` 元数据（活动文件、选区）仅在会话**首次发送**时附带，避免冗余传递。
+- **右键菜单集成。** 在资源管理器中右键文件 → **Add to Harness Chat** 插入 `@file:` 引用。在编辑器中选中文本 → 右键 → **Send Selection to Harness** 插入 `@file:path:L10-L20`。均使用工作区相对路径，便于阅读。
+
+### Bug 修复
+
+- **Windows 下 @file 正则解析。** 添加负向前瞻 `(?!L\d)`，防止 `:L<digits>` 行范围被当作文件路径的一部分（对 Windows 路径如 `e:\folder\file.ts:L10` 至关重要）。
+- **Webview 正则转义。** 修复模板字符串中 `\s`/`\d` 的双重转义 — 不修复时 `[^\s:]` 会变成 `[^s:]`，无法排除空白字符。
+- **跳过非文件文档。** `collectEditorContext` 现在跳过 URI scheme 非 `file` 的文档（Output 面板、设置页等）。
+- **仅含 @file 时输入被清空。** 当输入仅包含 `@file:` 引用时，聊天现在显示可读摘要如 `(See: file.ts:L10-L20)`，而非被清空。
+
+### 新增模块
+
+- `src/review/` — `ReviewController`、`ReviewStore`、`ReviewVirtualDocumentProvider`、`ReviewMaterializer`（6 文件，约 500 行）
+- `src/approval/` — `ApprovalStore`、类型定义（2 文件，约 150 行）
+
+---
+
 ## [0.0.2] — 2026-08-15
 
 版本定位：**对话 UX & 架构基线版。**

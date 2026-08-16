@@ -12,9 +12,11 @@
  */
 
 import type * as vscode from 'vscode'
+import * as path from 'node:path'
+import { readFileSync } from 'node:fs'
 import type { HarnessClient } from '../harness/client.ts'
 import type { MuxStatus } from '../harness/events.ts'
-import type { PromptContext, SessionId, SessionSummary, WorkspaceView } from '../harness/protocol.ts'
+import type { CallId, FileReference, PromptContext, RpcId, SessionId, SessionSummary, WorkspaceView } from '../harness/protocol.ts'
 import { ConversationModel, sessionLabel } from '../conversation/model.ts'
 import type { ConversationItem, SessionSnapshot } from '../conversation/types.ts'
 import {
@@ -27,6 +29,9 @@ import type { WebviewAction } from '../view/provider.ts'
 import type { HarnessWebviewViewProvider } from '../view/provider.ts'
 import { CompositeDisposable } from '../disposable.ts'
 import { collectEditorContext, mergeContext, parseAtFileReferences } from '../context/collector.ts'
+import { ReviewController } from '../review/controller.ts'
+import { ReviewVirtualDocumentProvider } from '../review/virtualDocument.ts'
+import { ApprovalStore } from '../approval/store.ts'
 
 export interface ControllerDeps {
   client: HarnessClient
@@ -55,6 +60,10 @@ export class AppController {
   private activeSessionId: SessionId | undefined
   private model: ConversationModel | undefined
   private muxStatus: MuxStatus | undefined
+  private reviewController: ReviewController | undefined
+  private approvalStore = new ApprovalStore()
+  /** Tracks which sessions have already received their first prompt (with context). */
+  private firstPromptSent = new Set<SessionId>()
 
   constructor(private readonly d: ControllerDeps) {}
 
@@ -69,11 +78,33 @@ export class AppController {
       if (reopened && this.activeSessionId) void this.refetchHistory(this.activeSessionId)
       this.pushFromClient()
     }))
+    // Wire approval frames → ApprovalStore
+    this.disposables.add(this.d.client.onApprovalFrame((frame, rpcId) => {
+      this.handleApprovalFrame(frame, rpcId)
+    }))
+    // Create ReviewController (lives for entire extension lifetime; filters by sessionId)
+    this.reviewController = new ReviewController({
+      workspace: this.d.vscodeAPI.workspace,
+      onChange: () => this.pushReviewApprovalState(),
+      notifyError: (m) => this.d.notifyError(m),
+      log: this.d.log,
+    })
+    this.disposables.add({ dispose: () => this.reviewController?.dispose() })
+    // Wire approval store changes → pushState
+    this.disposables.add(this.approvalStore.onApprovalChange(() => this.pushReviewApprovalState()))
+    // Register virtual document provider for dsh-review:// URIs (native diff support)
+    this.disposables.add(
+      this.d.vscodeAPI.workspace.registerTextDocumentContentProvider(
+        ReviewVirtualDocumentProvider.scheme,
+        new ReviewVirtualDocumentProvider(this.reviewController.store),
+      ),
+    )
     return this.disposables
   }
 
   // ─── actions (called by webview + commands) ────────────────────────────────
   async dispatch(action: WebviewAction): Promise<void> {
+    this.d.log.info(`dispatch: action.type=${action.type}`)
     switch (action.type) {
       case 'connect': await this.doConnect(); break
       case 'disconnect': this.doDisconnect(); break
@@ -85,6 +116,13 @@ export class AppController {
       case 'openWebUI': this.d.openHarnessHome(); break
       case 'toggleSystemMessages': this.toggleSystemMessages(); break
       case 'moveToSecondarySideBar': void this.d.moveToSecondarySideBar(); break
+      case 'reviewAcceptFile': this.reviewController?.acceptFile(action.reviewId, action.filePath); break
+      case 'reviewRejectFile': await this.reviewController?.rejectFile(action.reviewId, action.filePath); break
+      case 'reviewRejectHunk': await this.reviewController?.rejectHunk(action.reviewId, action.filePath, action.hunkId); break
+      case 'reviewOpenDiff': await this.reviewController?.openDiff(action.reviewId, action.filePath); break
+      case 'reviewAcceptAll': this.reviewController?.acceptAll(action.reviewId); break
+      case 'reviewRejectAll': await this.reviewController?.rejectAll(action.reviewId); break
+      case 'approvalRespond': await this.respondApproval(action.rpcId, action.outcome); break
     }
   }
 
@@ -102,12 +140,17 @@ export class AppController {
 
   doDisconnect(): void {
     this.d.client.disconnect()
+    if (this.activeSessionId) {
+      this.reviewController?.store.clearSession(this.activeSessionId)
+      this.approvalStore.clearSession(this.activeSessionId)
+    }
     this.model = undefined
     this.activeSessionId = undefined
     this.sessions = []
     this.binding = null
     this.noFolder = undefined
-    this.d.setState({ snapshot: undefined, activeSessionId: undefined, sessions: [], workspace: undefined })
+    this.firstPromptSent.clear()
+    this.d.setState({ snapshot: undefined, activeSessionId: undefined, sessions: [], workspace: undefined, reviews: undefined, approvals: undefined })
     this.d.pushState()
   }
 
@@ -150,6 +193,17 @@ export class AppController {
     this.activeSessionId = sessionId
     this.model = new ConversationModel(sessionId)
     this.model.setShowSystemMessages(this.d.getState().showSystemMessages)
+    // Wire tool completion → ReviewController (creates review transactions for write/edit)
+    this.model.setToolCompletedHandler((info) => {
+      const reviewId = this.reviewController?.onToolCompleted({
+        sessionId,
+        callId: info.callId,
+        toolName: info.toolName,
+        arguments: info.arguments,
+        resultMeta: info.resultMeta,
+      })
+      if (reviewId) this.model?.setReviewId(info.callId, reviewId)
+    })
     this.d.setState({ activeSessionId: sessionId, snapshot: this.model.snapshot() })
     try {
       await this.refetchHistory(sessionId)
@@ -162,7 +216,7 @@ export class AppController {
       this.d.log.error('history/subscribe: ' + msg)
       this.d.notifyError(msg)
     }
-    this.d.pushState()
+    this.pushReviewApprovalState()
   }
 
   private async refetchHistory(sessionId: SessionId): Promise<void> {
@@ -182,14 +236,87 @@ export class AppController {
       this.d.setState({ canStop: snap?.running === true })
       return
     }
-    if (f.type === 'approval/requested' || f.type === 'question/requested') {
-      this.d.notifyInfo('Action requires approval in DeepSeek Harness Web UI')
-      return
-    }
     if (f.type === 'stream/error' && f.error) {
       const err = f.error as { message?: string }
       this.d.notifyError('Harness stream error: ' + (err.message ?? 'unknown'))
     }
+  }
+
+  /** Handle approval frames from the dedicated approval listener (has rpcId). */
+  private handleApprovalFrame(frame: unknown, rpcId: RpcId): void {
+    const f = frame as {
+      type: string
+      sessionId?: SessionId
+      approvalId?: string
+      toolName?: string
+      callId?: CallId
+      reason?: string
+      outcome?: string
+    }
+    if (f.type === 'approval/requested' && f.sessionId && f.approvalId) {
+      const approval = this.approvalStore.upsert({
+        rpcId,
+        sessionId: f.sessionId,
+        approvalId: f.approvalId,
+        toolName: f.toolName,
+        callId: f.callId,
+        reason: f.reason,
+      })
+      // Link approval to ToolItem if callId matches
+      if (f.callId && this.model) {
+        this.model.setApprovalRpcId(f.callId, rpcId)
+        this.d.setState({ snapshot: this.model.snapshot() })
+      }
+      this.d.log.info(`Approval requested: ${f.toolName ?? 'unknown'} (callId=${f.callId ?? '—'})`)
+      this.pushReviewApprovalState()
+      return
+    }
+    if (f.type === 'approval/resolved' && f.approvalId) {
+      this.approvalStore.resolve(rpcId, f.outcome ?? 'resolved')
+      this.d.log.info(`Approval resolved: outcome=${f.outcome ?? '—'}`)
+      this.pushReviewApprovalState()
+      return
+    }
+  }
+
+  /** Respond to an approval via POST /api/respond. */
+  private async respondApproval(rpcId: RpcId, outcome: 'allowed-once' | 'rejected'): Promise<void> {
+    const approval = this.approvalStore.getByRpcId(rpcId)
+    if (!approval) {
+      this.d.notifyError('Approval not found or already resolved.')
+      return
+    }
+    // Security: double-check canAllow before sending allow
+    if (outcome === 'allowed-once' && !this.approvalStore.canAllow(approval, this.activeSessionId)) {
+      this.d.notifyError('This approval cannot be allowed from VS Code. Please review in the Harness Web UI.')
+      return
+    }
+    this.approvalStore.setResponding(rpcId)
+    this.pushReviewApprovalState()
+    try {
+      await this.d.client.respondApproval(rpcId, {
+        sessionId: approval.sessionId,
+        approvalId: approval.approvalId,
+        outcome,
+      })
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      this.d.log.error('respondApproval: ' + msg)
+      this.d.notifyError(`Failed to respond to approval: ${msg}`)
+    }
+  }
+
+  /** Push review and approval summaries to UiState. Also touches the model so
+   *  the webview re-renders items (review/approval cards update). */
+  private pushReviewApprovalState(): void {
+    const sid = this.activeSessionId
+    if (this.model) this.model.touch()
+    this.d.setState({
+      reviews: sid ? this.reviewController?.summaries(sid) : undefined,
+      approvals: this.approvalStore.summaries(sid),
+      snapshot: this.model?.snapshot(),
+    })
+    this.d.pushState()
   }
 
   async newSession(): Promise<void> {
@@ -211,15 +338,12 @@ export class AppController {
    *  2. If no harness workspace → ensureHarnessWorkspace (no modal).
    *  3. If no session → create session.
    *  4. Parse @file refs from text (strip tokens → cleaned text).
-   *  5. Collect editor context (active file, selection).
-   *  6. Merge all context sources.
-   *  7. Optimistic echo → prompt with context.
-   *
-   * Context is passed as `payload.context` (metadata), NOT in `payload.content`,
-   * so the conversation KV cache is not affected.
+   *  5. Read file content and inline into prompt text (always).
+   *  6. Only on the FIRST prompt of a session, also attach `context` metadata
+   *     (active file, selection). Subsequent prompts rely on inlined content.
+   *  7. Optimistic echo (user text only) → send prompt.
    */
-  async sendPrompt(rawText: string, webviewContext?: PromptContext): Promise<void> {
-    const st = this.d.getState()
+  async sendPrompt(rawText: string, _webviewContext?: PromptContext): Promise<void> {
     this.d.setState({ sending: true })
     this.d.pushState()
     try {
@@ -244,30 +368,65 @@ export class AppController {
 
       // 4: parse @file references (strips tokens from text)
       const { cleanedText, files: atFileRefs } = parseAtFileReferences(rawText)
-      const displayText = cleanedText || rawText // fallback if all text was @file refs
+      const resolvedRefs = this.resolveFileRefs(atFileRefs)
 
-      // 5: collect editor context (active file, selection)
-      const editorCtx = collectEditorContext(this.d.vscodeAPI.window)
+      // Build display text for the optimistic echo (user-visible, no file content)
+      let displayText = cleanedText
+      if (!displayText && resolvedRefs.length > 0) {
+        const names = resolvedRefs.map(f => {
+          const parts = f.path.split('/')
+          const name = parts[parts.length - 1] ?? f.path
+          const range = f.lineStart ? `:L${f.lineStart}${f.lineEnd ? `-L${f.lineEnd}` : ''}` : ''
+          return `${name}${range}`
+        })
+        displayText = `(See: ${names.join(', ')})`
+      }
 
-      // 6: merge all context sources (webview + @file + editor)
-      const merged = mergeContext(
-        webviewContext ?? editorCtx,
-        atFileRefs,
-      )
-      // If webview sent context but editor also has state, merge editor too
-      const finalContext = webviewContext
-        ? mergeContext(mergeContext(editorCtx, atFileRefs), webviewContext.files ?? [])
-        : merged
+      // 5: read file content for each @file ref and inline into prompt text.
+      //    File content ALWAYS goes into `content` (the user message), because
+      //    the backend does not reliably process the `context` field.
+      let promptText = displayText
+      if (resolvedRefs.length > 0) {
+        const fileBlocks: string[] = []
+        for (const ref of resolvedRefs) {
+          try {
+            const raw = readFileSync(ref.path, 'utf8')
+            const lines = raw.split('\n')
+            const start = ref.lineStart ? ref.lineStart - 1 : 0
+            const end = ref.lineEnd ?? lines.length
+            const excerpt = lines.slice(start, end).join('\n')
+            const label = ref.lineStart
+              ? `${ref.path}:L${ref.lineStart}${ref.lineEnd ? `-L${ref.lineEnd}` : ''}`
+              : ref.path
+            fileBlocks.push(`<file path="${label}">\n${excerpt}\n</file>`)
+          } catch (e) {
+            this.d.log.error(`sendPrompt: failed to read @file ${ref.path} — ${e instanceof Error ? e.message : String(e)}`)
+          }
+        }
+        if (fileBlocks.length > 0) {
+          promptText = fileBlocks.join('\n\n') + '\n\n' + displayText
+        }
+      }
 
-      // 7: optimistic echo → prompt with context
+      // 6: only attach `context` metadata on the first prompt of this session.
+      //    On subsequent prompts, file content is already inlined above.
+      const isFirstPrompt = !this.firstPromptSent.has(this.activeSessionId)
+      let context: PromptContext | undefined
+      if (isFirstPrompt) {
+        const editorCtx = collectEditorContext(this.d.vscodeAPI.window)
+        context = mergeContext(editorCtx, resolvedRefs)
+        this.firstPromptSent.add(this.activeSessionId)
+      }
+
+      // 7: optimistic echo (user text only) → send prompt with inlined content
       this.model?.optimisticUserEcho(displayText)
       this.d.setState({ snapshot: this.model?.snapshot() })
       this.d.pushState()
       await this.d.client.prompt(
         this.activeSessionId,
-        displayText,
+        promptText,
         Intl.DateTimeFormat().resolvedOptions().timeZone,
-        finalContext,
+        context,
       )
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
@@ -306,26 +465,39 @@ export class AppController {
     }
   }
 
-  /** Append an @file reference to the webview input (called from explorer/context menu). */
+  /** Append an @file reference to the webview input (called from explorer/context menu).
+   *  Uses workspace-relative path for readability. */
   addToChat(uri: vscode.Uri): void {
-    const filePath = uri.fsPath
-    const token = `@file:${filePath} `
+    const relPath = this.d.vscodeAPI.workspace.asRelativePath(uri)
+    const token = `@file:${relPath.replace(/\\/g, '/')} `
     this.d.provider?.postToWebview({ kind: 'appendInput', text: token })
   }
 
-  /** Append an @file reference (path + line range) for the current selection to the chat input. */
+  /** Append an @file reference (path + line range) for the current selection to the chat input.
+   *  Uses workspace-relative path for readability. */
   sendSelection(): void {
     const editor = this.d.vscodeAPI.window.activeTextEditor
     if (!editor || editor.selection.isEmpty) {
       this.d.notifyError('No text selected in the active editor.')
       return
     }
-    const filePath = editor.document.fileName
+    const relPath = this.d.vscodeAPI.workspace.asRelativePath(editor.document.uri)
+    const filePath = relPath.replace(/\\/g, '/')
     const startLine = editor.selection.start.line + 1
     const endLine = editor.selection.end.line + 1
     const range = startLine === endLine ? `:L${startLine}` : `:L${startLine}-L${endLine}`
     const token = `@file:${filePath}${range} `
     this.d.provider?.postToWebview({ kind: 'appendInput', text: token })
+  }
+
+  /** Resolve relative @file paths to absolute (backend needs absolute paths to read files). */
+  private resolveFileRefs(refs: FileReference[]): FileReference[] {
+    const wsRoot = this.binding?.folder?.uri.fsPath
+    if (!wsRoot) return refs
+    return refs.map(ref => ({
+      ...ref,
+      path: path.isAbsolute(ref.path) ? ref.path : path.resolve(wsRoot, ref.path).replace(/\\/g, '/'),
+    }))
   }
 
   toggleSystemMessages(): void {

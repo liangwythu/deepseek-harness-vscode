@@ -36,6 +36,8 @@ export interface UiState {
   showSystemMessages: boolean
   systemMessageCount: number
   brandIconUri?: string
+  reviews?: import('../review/types.ts').ReviewSummary[]
+  approvals?: import('../approval/types.ts').ApprovalSummary[]
   renderVersion: number
 }
 
@@ -52,6 +54,13 @@ export type WebviewAction =
   | { type: 'toggleSystemMessages' }
   | { type: 'moveToSecondarySideBar' }
   | { type: 'appendInput'; text: string }
+  | { type: 'reviewAcceptFile'; reviewId: string; filePath: string }
+  | { type: 'reviewRejectFile'; reviewId: string; filePath: string }
+  | { type: 'reviewRejectHunk'; reviewId: string; filePath: string; hunkId: string }
+  | { type: 'reviewOpenDiff'; reviewId: string; filePath: string }
+  | { type: 'reviewAcceptAll'; reviewId: string }
+  | { type: 'reviewRejectAll'; reviewId: string }
+  | { type: 'approvalRespond'; rpcId: string; outcome: 'allowed-once' | 'rejected' }
 
 export interface ProviderDeps {
   client: HarnessClient
