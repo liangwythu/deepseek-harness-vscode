@@ -137,7 +137,7 @@
     "gen-icon": "tsx scripts/gen-icon.ts",
     "integration-test": "tsx scripts/integration-test.ts",
     "package": "vsce package --no-dependencies",
-    "deploy": "npm run build && vsce package --no-dependencies && code --install-extension harness-connector-deepseek-0.0.2.vsix --force",
+    "deploy": "npm run build && vsce package --no-dependencies --out dist/harness-connector-deepseek.vsix && code --install-extension dist/harness-connector-deepseek.vsix --force",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
